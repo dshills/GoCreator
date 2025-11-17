@@ -63,7 +63,7 @@ func NewFileLogger(logDir string) (*FileLogger, error) {
 }
 
 // LogFileOperation logs a file operation to the JSONL file
-func (l *FileLogger) LogFileOperation(ctx context.Context, log models.FileOperationLog) error {
+func (l *FileLogger) LogFileOperation(_ context.Context, log models.FileOperationLog) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -86,7 +86,7 @@ func (l *FileLogger) LogFileOperation(ctx context.Context, log models.FileOperat
 }
 
 // LogDecision logs a decision to the JSONL file
-func (l *FileLogger) LogDecision(ctx context.Context, log models.DecisionLog) error {
+func (l *FileLogger) LogDecision(_ context.Context, log models.DecisionLog) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -109,7 +109,7 @@ func (l *FileLogger) LogDecision(ctx context.Context, log models.DecisionLog) er
 }
 
 // LogError logs an error to the JSONL file
-func (l *FileLogger) LogError(ctx context.Context, component, operation, message string, err error) error {
+func (l *FileLogger) LogError(_ context.Context, component, operation, message string, err error) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -135,7 +135,7 @@ func (l *FileLogger) LogError(ctx context.Context, component, operation, message
 }
 
 // LogInfo logs an informational message to the JSONL file
-func (l *FileLogger) LogInfo(ctx context.Context, component, operation, message string) error {
+func (l *FileLogger) LogInfo(_ context.Context, component, operation, message string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -179,7 +179,7 @@ func NewMemoryLogger() *MemoryLogger {
 }
 
 // LogFileOperation logs a file operation to memory
-func (m *MemoryLogger) LogFileOperation(ctx context.Context, log models.FileOperationLog) error {
+func (m *MemoryLogger) LogFileOperation(_ context.Context, log models.FileOperationLog) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -198,7 +198,7 @@ func (m *MemoryLogger) LogFileOperation(ctx context.Context, log models.FileOper
 }
 
 // LogDecision logs a decision to memory
-func (m *MemoryLogger) LogDecision(ctx context.Context, log models.DecisionLog) error {
+func (m *MemoryLogger) LogDecision(_ context.Context, log models.DecisionLog) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -217,7 +217,7 @@ func (m *MemoryLogger) LogDecision(ctx context.Context, log models.DecisionLog) 
 }
 
 // LogError logs an error to memory
-func (m *MemoryLogger) LogError(ctx context.Context, component, operation, message string, err error) error {
+func (m *MemoryLogger) LogError(_ context.Context, component, operation, message string, err error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -240,7 +240,7 @@ func (m *MemoryLogger) LogError(ctx context.Context, component, operation, messa
 }
 
 // LogInfo logs an informational message to memory
-func (m *MemoryLogger) LogInfo(ctx context.Context, component, operation, message string) error {
+func (m *MemoryLogger) LogInfo(_ context.Context, component, operation, message string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -297,19 +297,19 @@ func (m *MemoryLogger) Close() error {
 // noopLogger is a logger that does nothing (used when no logger is configured)
 type noopLogger struct{}
 
-func (n *noopLogger) LogFileOperation(ctx context.Context, log models.FileOperationLog) error {
+func (n *noopLogger) LogFileOperation(_ context.Context, _ models.FileOperationLog) error {
 	return nil
 }
 
-func (n *noopLogger) LogDecision(ctx context.Context, log models.DecisionLog) error {
+func (n *noopLogger) LogDecision(_ context.Context, _ models.DecisionLog) error {
 	return nil
 }
 
-func (n *noopLogger) LogError(ctx context.Context, component, operation, message string, err error) error {
+func (n *noopLogger) LogError(_ context.Context, _, _, _ string, _ error) error {
 	return nil
 }
 
-func (n *noopLogger) LogInfo(ctx context.Context, component, operation, message string) error {
+func (n *noopLogger) LogInfo(_ context.Context, _, _, _ string) error {
 	return nil
 }
 

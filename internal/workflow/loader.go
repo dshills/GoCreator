@@ -10,12 +10,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// WorkflowLoader handles loading workflow definitions from YAML files
-type WorkflowLoader struct{}
+// Loader handles loading workflow definitions from YAML files
+type Loader struct{}
 
-// NewWorkflowLoader creates a new workflow loader
-func NewWorkflowLoader() *WorkflowLoader {
-	return &WorkflowLoader{}
+// NewLoader creates a new workflow loader
+func NewLoader() *Loader {
+	return &Loader{}
 }
 
 // yamlWorkflow represents the YAML structure for workflow definitions
@@ -45,7 +45,7 @@ type yamlTask struct {
 }
 
 // LoadFromFile loads a workflow definition from a YAML file
-func (l *WorkflowLoader) LoadFromFile(path string) (*models.WorkflowDefinition, error) {
+func (l *Loader) LoadFromFile(path string) (*models.WorkflowDefinition, error) {
 	// Read file
 	//nolint:gosec // G304: Reading workflow file - required for workflow loading
 	data, err := os.ReadFile(path)
@@ -57,7 +57,7 @@ func (l *WorkflowLoader) LoadFromFile(path string) (*models.WorkflowDefinition, 
 }
 
 // LoadFromBytes loads a workflow definition from YAML bytes
-func (l *WorkflowLoader) LoadFromBytes(data []byte) (*models.WorkflowDefinition, error) {
+func (l *Loader) LoadFromBytes(data []byte) (*models.WorkflowDefinition, error) {
 	var yamlWf yamlWorkflow
 
 	// Unmarshal YAML
@@ -80,7 +80,7 @@ func (l *WorkflowLoader) LoadFromBytes(data []byte) (*models.WorkflowDefinition,
 }
 
 // convertToWorkflowDefinition converts YAML structure to workflow definition
-func (l *WorkflowLoader) convertToWorkflowDefinition(yamlWf yamlWorkflow) (*models.WorkflowDefinition, error) {
+func (l *Loader) convertToWorkflowDefinition(yamlWf yamlWorkflow) (*models.WorkflowDefinition, error) {
 	// Parse config timeout
 	var configTimeout time.Duration
 	if yamlWf.Config.Timeout != "" {
@@ -136,7 +136,7 @@ func (l *WorkflowLoader) convertToWorkflowDefinition(yamlWf yamlWorkflow) (*mode
 }
 
 // SaveToFile saves a workflow definition to a YAML file
-func (l *WorkflowLoader) SaveToFile(workflow *models.WorkflowDefinition, path string) error {
+func (l *Loader) SaveToFile(workflow *models.WorkflowDefinition, path string) error {
 	// Convert to YAML structure
 	yamlWf := l.convertFromWorkflowDefinition(workflow)
 
@@ -155,7 +155,7 @@ func (l *WorkflowLoader) SaveToFile(workflow *models.WorkflowDefinition, path st
 }
 
 // convertFromWorkflowDefinition converts workflow definition to YAML structure
-func (l *WorkflowLoader) convertFromWorkflowDefinition(workflow *models.WorkflowDefinition) yamlWorkflow {
+func (l *Loader) convertFromWorkflowDefinition(workflow *models.WorkflowDefinition) yamlWorkflow {
 	// Convert tasks
 	tasks := make([]yamlTask, len(workflow.Tasks))
 	for i, task := range workflow.Tasks {
@@ -195,7 +195,7 @@ func (l *WorkflowLoader) convertFromWorkflowDefinition(workflow *models.Workflow
 }
 
 // ValidateYAML validates YAML syntax without full conversion
-func (l *WorkflowLoader) ValidateYAML(data []byte) error {
+func (l *Loader) ValidateYAML(data []byte) error {
 	var yamlWf yamlWorkflow
 	return yaml.Unmarshal(data, &yamlWf)
 }

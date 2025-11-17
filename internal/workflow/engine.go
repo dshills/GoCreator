@@ -247,13 +247,14 @@ func (e *engine) Resume(ctx context.Context, executionID string) (*models.Workfl
 	}
 
 	// Load execution state
+	var execution *models.WorkflowExecution
+
 	e.mu.RLock()
-	execution, exists := e.executions[executionID]
+	_, exists := e.executions[executionID]
 	e.mu.RUnlock()
 
 	if !exists {
 		// Try to load from disk
-		var err error
 		execution, err = e.loadExecutionFromDisk(ctx, executionID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load execution: %w", err)
@@ -284,7 +285,7 @@ func (e *engine) GetExecution(ctx context.Context, executionID string) (*models.
 }
 
 // SaveCheckpoint creates a checkpoint at the current execution state
-func (e *engine) SaveCheckpoint(ctx context.Context, execution *models.WorkflowExecution, taskID string, state map[string]interface{}) error {
+func (e *engine) SaveCheckpoint(_ context.Context, execution *models.WorkflowExecution, taskID string, state map[string]interface{}) error {
 	checkpoint := models.Checkpoint{
 		ID:          uuid.New().String(),
 		TaskID:      taskID,
@@ -322,7 +323,7 @@ func (e *engine) SaveCheckpoint(ctx context.Context, execution *models.WorkflowE
 }
 
 // LoadCheckpoint loads the most recent checkpoint for an execution
-func (e *engine) LoadCheckpoint(ctx context.Context, executionID string) (*models.Checkpoint, error) {
+func (e *engine) LoadCheckpoint(_ context.Context, executionID string) (*models.Checkpoint, error) {
 	checkpointDir := filepath.Join(e.checkpointDir, executionID)
 
 	// Check if checkpoint directory exists
@@ -375,7 +376,7 @@ func (e *engine) LoadCheckpoint(ctx context.Context, executionID string) (*model
 }
 
 // loadExecutionFromDisk loads execution state from checkpoint directory
-func (e *engine) loadExecutionFromDisk(ctx context.Context, executionID string) (*models.WorkflowExecution, error) {
+func (e *engine) loadExecutionFromDisk(_ context.Context, _ string) (*models.WorkflowExecution, error) {
 	// In a real implementation, this would load the full execution state
 	// For now, return an error
 	return nil, fmt.Errorf("loading execution from disk not fully implemented")

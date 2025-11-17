@@ -53,7 +53,7 @@ Example:
 	RunE: runValidate,
 }
 
-func init() {
+func setupValidateFlags() {
 	validateCmd.Flags().BoolVar(&validateSkipBuild, "skip-build", false, "skip build validation")
 	validateCmd.Flags().BoolVar(&validateSkipLint, "skip-lint", false, "skip lint validation")
 	validateCmd.Flags().BoolVar(&validateSkipTests, "skip-tests", false, "skip test validation")

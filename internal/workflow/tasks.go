@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -323,7 +324,8 @@ func (t *ShellTask) Execute(ctx context.Context, inputs map[string]interface{}) 
 
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
 			return nil, fmt.Errorf("failed to execute command: %w", err)
@@ -388,7 +390,7 @@ func (t *LangGraphTask) Name() string {
 }
 
 // Execute runs the LangGraph task
-func (t *LangGraphTask) Execute(ctx context.Context, inputs map[string]interface{}) (interface{}, error) {
+func (t *LangGraphTask) Execute(_ context.Context, inputs map[string]interface{}) (interface{}, error) {
 	// Extract node name
 	node, ok := inputs["node"].(string)
 	if !ok {

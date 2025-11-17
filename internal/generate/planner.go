@@ -219,7 +219,7 @@ func (p *llmPlanner) buildPlanningPrompt(fcs *models.FinalClarifiedSpecification
 }
 
 // parsePlanResponse parses the LLM response into a GenerationPlan
-func (p *llmPlanner) parsePlanResponse(response string, fcs *models.FinalClarifiedSpecification) (*models.GenerationPlan, error) {
+func (p *llmPlanner) parsePlanResponse(response string, _ *models.FinalClarifiedSpecification) (*models.GenerationPlan, error) {
 	// Clean the response (remove markdown code blocks if present)
 	response = strings.TrimSpace(response)
 	response = strings.TrimPrefix(response, "```json")

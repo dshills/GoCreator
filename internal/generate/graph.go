@@ -228,13 +228,13 @@ func (gg *GenerationGraph) Execute(ctx context.Context, fcs *models.FinalClarifi
 
 // Node implementations
 
-func (gg *GenerationGraph) startNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (gg *GenerationGraph) startNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Debug().Msg("Starting generation workflow")
 	state.Set("current_phase", "start")
 	return state, nil
 }
 
-func (gg *GenerationGraph) analyzeFCSNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (gg *GenerationGraph) analyzeFCSNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Debug().Msg("Analyzing FCS")
 	state.Set("current_phase", "analyze_fcs")
 
@@ -357,7 +357,7 @@ func (gg *GenerationGraph) generateTestsNode(ctx context.Context, state langgrap
 	return state, nil
 }
 
-func (gg *GenerationGraph) generateConfigNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (gg *GenerationGraph) generateConfigNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Debug().Msg("Generating configuration files")
 	state.Set("current_phase", "generate_config")
 
@@ -373,7 +373,7 @@ func (gg *GenerationGraph) generateConfigNode(ctx context.Context, state langgra
 	return state, nil
 }
 
-func (gg *GenerationGraph) applyPatchesNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (gg *GenerationGraph) applyPatchesNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Debug().Msg("Collecting patches for application")
 	state.Set("current_phase", "apply_patches")
 
@@ -405,7 +405,7 @@ func (gg *GenerationGraph) applyPatchesNode(ctx context.Context, state langgraph
 	return state, nil
 }
 
-func (gg *GenerationGraph) endNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (gg *GenerationGraph) endNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Debug().Msg("Finalizing generation output")
 	state.Set("current_phase", "end")
 

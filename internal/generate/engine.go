@@ -272,7 +272,7 @@ func (e *engine) countTotalLines(files []models.GeneratedFile) int {
 }
 
 // logDecision logs a generation decision for audit and replay
-func (e *engine) logDecision(ctx context.Context, decision, rationale string, context map[string]interface{}) {
+func (e *engine) logDecision(_ context.Context, decision, rationale string, context map[string]interface{}) {
 	log.Info().
 		Str("decision", decision).
 		Str("rationale", rationale).
@@ -284,7 +284,7 @@ func (e *engine) logDecision(ctx context.Context, decision, rationale string, co
 }
 
 // Resume resumes generation from a checkpoint
-func (e *engine) Resume(ctx context.Context, checkpointID string) (*models.GenerationOutput, error) {
+func (e *engine) Resume(_ context.Context, checkpointID string) (*models.GenerationOutput, error) {
 	log.Info().
 		Str("checkpoint_id", checkpointID).
 		Msg("Resuming generation from checkpoint")

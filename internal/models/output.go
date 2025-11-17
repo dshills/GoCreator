@@ -10,6 +10,7 @@ import (
 // OutputStatus represents the status of generation output
 type OutputStatus string
 
+// OutputStatus constants define the possible states of generation output
 const (
 	OutputStatusPending    OutputStatus = "pending"
 	OutputStatusInProgress OutputStatus = "in_progress"

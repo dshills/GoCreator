@@ -57,7 +57,7 @@ Example:
 	RunE: runDumpFCS,
 }
 
-func init() {
+func setupDumpFCSFlags() {
 	dumpFCSCmd.Flags().StringVarP(&dumpFCSOutput, "output", "o", "", "output file path (default: stdout)")
 	dumpFCSCmd.Flags().StringVar(&dumpFCSBatch, "batch", "", "path to JSON file with pre-answered questions")
 	dumpFCSCmd.Flags().BoolVar(&dumpFCSPretty, "pretty", true, "pretty-print JSON")

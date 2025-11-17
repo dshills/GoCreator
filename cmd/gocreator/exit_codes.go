@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Exit codes as specified in the CLI contract
 const (
@@ -32,8 +35,7 @@ func (e ExitError) Unwrap() error {
 // FormatError formats an error message for display
 func FormatError(err error, command string) string {
 	var exitErr ExitError
-	var ok bool
-	if exitErr, ok = err.(ExitError); !ok {
+	if !errors.As(err, &exitErr) {
 		exitErr = ExitError{Code: ExitCodeGeneralError, Err: err}
 	}
 

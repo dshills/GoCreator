@@ -96,7 +96,7 @@ func (f *fileOps) ApplyPatch(ctx context.Context, patch models.Patch) error {
 }
 
 // GeneratePatch creates a patch from old content to new content
-func (f *fileOps) GeneratePatch(ctx context.Context, targetFile, oldContent, newContent string) (models.Patch, error) {
+func (f *fileOps) GeneratePatch(_ context.Context, targetFile, oldContent, newContent string) (models.Patch, error) {
 	if err := f.ValidatePath(targetFile); err != nil {
 		return models.Patch{}, fmt.Errorf("invalid target file path: %w", err)
 	}
@@ -282,7 +282,7 @@ func (f *fileOps) GetPatchStats(patch models.Patch) (added, removed, modified in
 	}
 
 	// Modified lines are the minimum of added and removed
-	modified = min(added, removed)
+	modified = minInt(added, removed)
 	added -= modified
 	removed -= modified
 
@@ -299,8 +299,8 @@ func allTrue(values []bool) bool {
 	return true
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

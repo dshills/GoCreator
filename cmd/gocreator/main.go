@@ -27,6 +27,7 @@ var (
 )
 
 func main() {
+	setupCommands()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -86,11 +87,18 @@ It follows a three-phase workflow:
 	},
 }
 
-func init() {
+func setupCommands() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default: .gocreator.yaml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "console", "log format (console, json)")
+
+	// Setup command-specific flags
+	setupClarifyFlags()
+	setupGenerateFlags()
+	setupValidateFlags()
+	setupFullFlags()
+	setupDumpFCSFlags()
 
 	// Add subcommands
 	rootCmd.AddCommand(versionCmd)

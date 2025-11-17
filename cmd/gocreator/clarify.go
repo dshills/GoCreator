@@ -53,7 +53,7 @@ Example:
 	RunE: runClarify,
 }
 
-func init() {
+func setupClarifyFlags() {
 	clarifyCmd.Flags().StringVarP(&clarifyOutput, "output", "o", ".", "output directory for FCS")
 	clarifyCmd.Flags().BoolVarP(&clarifyInteractive, "interactive", "i", true, "interactive mode for answering questions")
 	clarifyCmd.Flags().StringVar(&clarifyBatch, "batch", "", "path to JSON file with pre-answered questions")

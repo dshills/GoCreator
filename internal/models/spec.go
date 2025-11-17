@@ -8,6 +8,7 @@ import (
 // SpecFormat represents the format of the input specification
 type SpecFormat string
 
+// SpecFormat constants define the supported specification file formats
 const (
 	FormatYAML     SpecFormat = "yaml"
 	FormatJSON     SpecFormat = "json"
@@ -17,6 +18,7 @@ const (
 // SpecState represents the state of a specification in its lifecycle
 type SpecState string
 
+// SpecState constants define the lifecycle states of a specification
 const (
 	SpecStateUnparsed SpecState = "unparsed"
 	SpecStateParsed   SpecState = "parsed"

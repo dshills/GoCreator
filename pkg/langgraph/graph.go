@@ -42,9 +42,9 @@ func WithCheckpointing(mgr CheckpointManager) GraphOption {
 }
 
 // WithMaxParallel sets the maximum number of parallel node executions
-func WithMaxParallel(max int) GraphOption {
+func WithMaxParallel(maxParallel int) GraphOption {
 	return func(g *Graph) {
-		g.maxParallel = max
+		g.maxParallel = maxParallel
 	}
 }
 
@@ -254,7 +254,6 @@ func (g *Graph) executeBatch(
 	results := make(map[string]State)
 
 	for _, nodeID := range nodeIDs {
-		nodeID := nodeID // Capture for goroutine (required for Go < 1.22)
 		eg.Go(func() error {
 			// Clone state for parallel execution
 			clonedState, err := state.Clone()
@@ -401,7 +400,7 @@ func (g *Graph) topologicalSort() ([][]string, error) {
 }
 
 // Resume resumes execution from a checkpoint
-func (g *Graph) Resume(ctx context.Context, checkpointID string) (State, error) {
+func (g *Graph) Resume(ctx context.Context, _ string) (State, error) {
 	if !g.enableCheckpoint || g.checkpointMgr == nil {
 		return nil, fmt.Errorf("checkpointing not enabled")
 	}

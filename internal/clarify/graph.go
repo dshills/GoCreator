@@ -110,7 +110,7 @@ func (cg *ClarificationGraph) BuildGraph() (*langgraph.Graph, error) {
 }
 
 // startNode initializes the workflow state
-func (cg *ClarificationGraph) startNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) startNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Info().Msg("Starting clarification workflow")
 
 	// Validate that spec exists in state
@@ -158,7 +158,7 @@ func (cg *ClarificationGraph) analyzeSpecNode(ctx context.Context, state langgra
 }
 
 // checkAmbiguitiesNode checks if ambiguities were found
-func (cg *ClarificationGraph) checkAmbiguitiesNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) checkAmbiguitiesNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	val, ok := state.Get("ambiguities")
 	if !ok {
 		state.Set("has_ambiguities", false)
@@ -218,7 +218,7 @@ func (cg *ClarificationGraph) generateQuestionsNode(ctx context.Context, state l
 }
 
 // buildFCSNode builds the Final Clarified Specification
-func (cg *ClarificationGraph) buildFCSNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) buildFCSNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Info().Msg("Building Final Clarified Specification")
 
 	// Get spec from state
@@ -255,7 +255,7 @@ func (cg *ClarificationGraph) buildFCSNode(ctx context.Context, state langgraph.
 }
 
 // endNode completes the workflow
-func (cg *ClarificationGraph) endNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) endNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
 	log.Info().Msg("Clarification workflow completed")
 
 	state.Set("workflow_completed", true)

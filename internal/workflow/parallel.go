@@ -104,7 +104,6 @@ func (e *ParallelExecutor) Execute(ctx context.Context, tasks []models.WorkflowT
 		g.SetLimit(e.maxWorkers)
 
 		for _, taskID := range levelTasks {
-		taskID := taskID // Capture for goroutine (required for Go < 1.22)
 			g.Go(func() error {
 				// Get task definition
 				taskDef, exists := graph.GetNode(taskID)

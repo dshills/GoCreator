@@ -201,7 +201,7 @@ func (e *ClarificationEngine) GenerateRequest(
 
 // ApplyAnswers applies user answers to build the FCS
 func (e *ClarificationEngine) ApplyAnswers(
-	ctx context.Context,
+	_ context.Context,
 	spec *models.InputSpecification,
 	request *models.ClarificationRequest,
 	response *models.ClarificationResponse,
@@ -271,7 +271,7 @@ func (e *ClarificationEngine) ValidateSpec(spec *models.InputSpecification) erro
 
 // LogDecision logs a clarification decision with rationale
 func (e *ClarificationEngine) LogDecision(
-	ctx context.Context,
+	_ context.Context,
 	decision string,
 	rationale string,
 	alternatives []string,

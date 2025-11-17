@@ -178,7 +178,7 @@ tasks:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loader := workflow.NewWorkflowLoader()
+			loader := workflow.NewLoader()
 			wf, err := loader.LoadFromBytes([]byte(tt.yaml))
 
 			if tt.wantErr {
@@ -225,7 +225,7 @@ func TestWorkflowLoader_SaveToFile(t *testing.T) {
 	}
 
 	// Save to file
-	loader := workflow.NewWorkflowLoader()
+	loader := workflow.NewLoader()
 	filePath := tmpDir + "/workflow.yaml"
 	err := loader.SaveToFile(wfDef, filePath)
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ tasks:
 	require.NoError(t, err)
 
 	// Load from file
-	loader := workflow.NewWorkflowLoader()
+	loader := workflow.NewLoader()
 	wf, err := loader.LoadFromFile(filePath)
 	require.NoError(t, err)
 
@@ -312,7 +312,7 @@ tasks:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loader := workflow.NewWorkflowLoader()
+			loader := workflow.NewLoader()
 			err := loader.ValidateYAML([]byte(tt.yaml))
 
 			if tt.wantErr {
@@ -364,7 +364,7 @@ func TestWorkflowLoader_RoundTrip(t *testing.T) {
 		},
 	}
 
-	loader := workflow.NewWorkflowLoader()
+	loader := workflow.NewLoader()
 
 	// Convert to YAML
 	tmpDir := t.TempDir()

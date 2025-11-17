@@ -264,7 +264,7 @@ func (f *fileOps) SafeUpdate(ctx context.Context, path, newContent string) error
 		// Try to restore from backup
 		if backupPath != "" {
 			if restoreErr := f.RestoreFromBackup(ctx, path); restoreErr != nil {
-				return fmt.Errorf("failed to verify write and restore failed: %w (restore error: %v)", err, restoreErr)
+				return fmt.Errorf("failed to verify write and restore failed: %w (restore error: %w)", err, restoreErr)
 			}
 		}
 		return fmt.Errorf("failed to verify written content: %w", err)
@@ -278,7 +278,7 @@ func (f *fileOps) SafeUpdate(ctx context.Context, path, newContent string) error
 		// Checksums don't match, restore from backup
 		if backupPath != "" {
 			if restoreErr := f.RestoreFromBackup(ctx, path); restoreErr != nil {
-				return fmt.Errorf("checksum mismatch and restore failed: restore error: %v", restoreErr)
+				return fmt.Errorf("checksum mismatch and restore failed: restore error: %w", restoreErr)
 			}
 		}
 		return fmt.Errorf("checksum mismatch after write: expected %s, got %s", expectedChecksum, actualChecksum)

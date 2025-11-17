@@ -259,7 +259,7 @@ func (f *fileOps) MkdirAll(ctx context.Context, path string, perm os.FileMode) e
 }
 
 // Exists checks if a file or directory exists within the bounded root
-func (f *fileOps) Exists(ctx context.Context, path string) (bool, error) {
+func (f *fileOps) Exists(_ context.Context, path string) (bool, error) {
 	if err := f.ValidatePath(path); err != nil {
 		return false, err
 	}

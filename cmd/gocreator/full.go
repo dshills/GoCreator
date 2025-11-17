@@ -55,7 +55,7 @@ Example:
 	RunE: runFull,
 }
 
-func init() {
+func setupFullFlags() {
 	fullCmd.Flags().StringVarP(&fullOutput, "output", "o", "./generated", "output directory")
 	fullCmd.Flags().StringVar(&fullBatch, "batch", "", "path to JSON file with pre-answered questions")
 	fullCmd.Flags().BoolVar(&fullResume, "resume", false, "resume from last checkpoint")

@@ -55,7 +55,7 @@ Example:
 	RunE: runGenerate,
 }
 
-func init() {
+func setupGenerateFlags() {
 	generateCmd.Flags().StringVarP(&generateOutput, "output", "o", "./generated", "output directory for generated code")
 	generateCmd.Flags().BoolVar(&generateResume, "resume", false, "resume from last checkpoint if available")
 	generateCmd.Flags().StringVar(&generateBatch, "batch", "", "path to JSON file with pre-answered questions")

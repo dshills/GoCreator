@@ -9,6 +9,7 @@ import (
 // WorkflowStatus represents the status of a workflow execution
 type WorkflowStatus string
 
+// WorkflowStatus constants define the possible states of workflow execution
 const (
 	WorkflowStatusPending   WorkflowStatus = "pending"
 	WorkflowStatusRunning   WorkflowStatus = "running"

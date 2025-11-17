@@ -8,6 +8,7 @@ import (
 // ValidationStatus represents the overall validation status
 type ValidationStatus string
 
+// ValidationStatus constants define the possible outcomes of validation
 const (
 	ValidationStatusPass ValidationStatus = "pass"
 	ValidationStatusFail ValidationStatus = "fail"
