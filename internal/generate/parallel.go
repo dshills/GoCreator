@@ -242,8 +242,6 @@ func (pc *ParallelCoder) generateWithDependencies(ctx context.Context, plan *mod
 
 		// Process all tasks in this level in parallel
 		for _, taskID := range levelTasks {
-			taskID := taskID // Capture for goroutine
-
 			g.Go(func() error {
 				node := graph.nodes[taskID]
 
