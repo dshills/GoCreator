@@ -170,9 +170,10 @@ func parseTestOutput(output string) (totalTests int, passedTests int, failures [
 
 			totalTests++
 
-			if status == "PASS" {
+			switch status {
+			case "PASS":
 				passedTests++
-			} else if status == "FAIL" {
+			case "FAIL":
 				// Start tracking a new failure
 				currentFailure = &models.TestFailure{
 					Package:  currentPackage,
@@ -180,26 +181,23 @@ func parseTestOutput(output string) (totalTests int, passedTests int, failures [
 					Message:  "",
 					Location: "",
 				}
-			}
-			// Skip SKIP status from totals
-			if status == "SKIP" {
+			case "SKIP":
+				// Skip SKIP status from totals
 				totalTests-- // Don't count skipped tests
 			}
-		} else {
+		} else if currentFailure != nil {
 			// Check for failure details (location and message) only if not a result line
-			if currentFailure != nil {
-				locMatches := locationPattern.FindStringSubmatch(line)
-				if locMatches != nil {
-					file := locMatches[1]
-					lineNum := locMatches[2]
-					message := locMatches[3]
+			locMatches := locationPattern.FindStringSubmatch(line)
+			if locMatches != nil {
+				file := locMatches[1]
+				lineNum := locMatches[2]
+				message := locMatches[3]
 
-					currentFailure.Location = fmt.Sprintf("%s:%s", file, lineNum)
-					if currentFailure.Message == "" {
-						currentFailure.Message = message
-					} else {
-						currentFailure.Message += "\n" + message
-					}
+				currentFailure.Location = fmt.Sprintf("%s:%s", file, lineNum)
+				if currentFailure.Message == "" {
+					currentFailure.Message = message
+				} else {
+					currentFailure.Message += "\n" + message
 				}
 			}
 		}

@@ -105,7 +105,7 @@ func New(cfg Config) (FileOps, error) {
 	}
 
 	// Ensure root directory exists
-	if err := os.MkdirAll(absRoot, 0755); err != nil {
+	if err := os.MkdirAll(absRoot, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create root directory: %w", err)
 	}
 
@@ -151,12 +151,12 @@ func (f *fileOps) WriteFile(ctx context.Context, path, content string) error {
 
 	// Ensure parent directory exists
 	dir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
 	// Write the file
-	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(absPath, []byte(content), 0600); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", path, err)
 	}
 

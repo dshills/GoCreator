@@ -49,10 +49,10 @@ func (t *llmTester) Generate(ctx context.Context, packages []string, plan *model
 		Msg("Starting test generation")
 
 	startTime := time.Now()
-	var allPatches []models.Patch
 
 	// Get all source files from the plan
 	sourceFiles := t.getSourceFiles(plan)
+	allPatches := make([]models.Patch, 0, len(sourceFiles))
 
 	// Generate tests for each source file
 	for _, sourceFile := range sourceFiles {
@@ -133,7 +133,7 @@ func (t *llmTester) GenerateTestFile(ctx context.Context, sourceFile string, pla
 
 // getSourceFiles extracts source file paths from the plan
 func (t *llmTester) getSourceFiles(plan *models.GenerationPlan) []string {
-	var files []string
+	files := make([]string, 0, len(plan.FileTree.Files))
 	for _, file := range plan.FileTree.Files {
 		files = append(files, file.Path)
 	}
@@ -148,7 +148,7 @@ func (t *llmTester) getTestFilePath(sourceFile string) string {
 	// Remove .go extension and add _test.go
 	if strings.HasSuffix(base, ".go") {
 		base = strings.TrimSuffix(base, ".go")
-		base = base + "_test.go"
+		base += "_test.go"
 	}
 
 	return filepath.Join(dir, base)

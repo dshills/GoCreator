@@ -254,7 +254,7 @@ func (g *Graph) executeBatch(
 	results := make(map[string]State)
 
 	for _, nodeID := range nodeIDs {
-		nodeID := nodeID // Capture for goroutine
+		nodeID := nodeID // Capture for goroutine (required for Go < 1.22)
 		eg.Go(func() error {
 			// Clone state for parallel execution
 			clonedState, err := state.Clone()

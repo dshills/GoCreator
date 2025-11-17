@@ -341,7 +341,7 @@ func TestSymlinkAttacks(t *testing.T) {
 	// Create a directory outside the root
 	outsideDir := t.TempDir()
 	outsideFile := filepath.Join(outsideDir, "secret.txt")
-	err = os.WriteFile(outsideFile, []byte("sensitive data"), 0644)
+	err = os.WriteFile(outsideFile, []byte("sensitive data"), 0600)
 	require.NoError(t, err)
 
 	// Create a symlink inside root that points outside

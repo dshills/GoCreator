@@ -292,21 +292,19 @@ func buildFCSFromSpec(spec *models.InputSpecification, answers map[string]models
 	}
 
 	// Apply answers if provided
-	if answers != nil {
-		for qID, answer := range answers {
-			var answerText string
-			if answer.SelectedOption != nil {
-				answerText = *answer.SelectedOption
-			} else if answer.CustomAnswer != nil {
-				answerText = *answer.CustomAnswer
-			}
-
-			fcs.Metadata.Clarifications = append(fcs.Metadata.Clarifications, models.AppliedClarification{
-				QuestionID: qID,
-				Answer:     answerText,
-				AppliedTo:  "specification",
-			})
+	for qID, answer := range answers {
+		var answerText string
+		if answer.SelectedOption != nil {
+			answerText = *answer.SelectedOption
+		} else if answer.CustomAnswer != nil {
+			answerText = *answer.CustomAnswer
 		}
+
+		fcs.Metadata.Clarifications = append(fcs.Metadata.Clarifications, models.AppliedClarification{
+			QuestionID: qID,
+			Answer:     answerText,
+			AppliedTo:  "specification",
+		})
 	}
 
 	// Compute hash

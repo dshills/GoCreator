@@ -136,21 +136,6 @@ func (a *LLMAnalyzer) parseAnalysisResponse(response string) ([]models.Ambiguity
 	return ambiguities, nil
 }
 
-// categorizeAmbiguity determines the category of an ambiguity
-func categorizeAmbiguity(ambiguity models.Ambiguity) string {
-	// Map severity to priority for clarification
-	switch ambiguity.Severity {
-	case "critical":
-		return "Must address before generation"
-	case "important":
-		return "Should address for quality"
-	case "minor":
-		return "Optional improvement"
-	default:
-		return "Unknown priority"
-	}
-}
-
 // FilterAmbiguities filters ambiguities by severity
 func FilterAmbiguities(ambiguities []models.Ambiguity, minSeverity string) []models.Ambiguity {
 	severityOrder := map[string]int{

@@ -253,6 +253,7 @@ func (e *engine) Resume(ctx context.Context, executionID string) (*models.Workfl
 
 	if !exists {
 		// Try to load from disk
+		var err error
 		execution, err = e.loadExecutionFromDisk(ctx, executionID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load execution: %w", err)

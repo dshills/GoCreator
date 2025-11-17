@@ -207,7 +207,7 @@ func TestReportGenerator_Load_InvalidFile(t *testing.T) {
 	// Test with invalid JSON
 	tmpDir := t.TempDir()
 	invalidPath := filepath.Join(tmpDir, "invalid.json")
-	err = os.WriteFile(invalidPath, []byte("not valid json"), 0644)
+	err = os.WriteFile(invalidPath, []byte("not valid json"), 0600)
 	require.NoError(t, err)
 
 	_, err = gen.Load(invalidPath)

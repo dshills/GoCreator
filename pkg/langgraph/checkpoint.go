@@ -148,7 +148,7 @@ func (m *FileCheckpointManager) List(graphID string) ([]*Checkpoint, error) {
 		return nil, fmt.Errorf("failed to read checkpoint directory: %w", err)
 	}
 
-	var checkpoints []*Checkpoint
+	checkpoints := make([]*Checkpoint, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue

@@ -204,7 +204,7 @@ func runCodeGeneration(_ *generationPlan, outputDir string, dryRun bool) error {
 
 	if !dryRun {
 		// Create output directory
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
+		if err := os.MkdirAll(outputDir, 0750); err != nil {
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create output directory: %w", err)}
 		}
 	}

@@ -263,7 +263,7 @@ tasks:
 
 	// Write YAML to file
 	filePath := tmpDir + "/workflow.yaml"
-	err := os.WriteFile(filePath, []byte(yamlContent), 0644)
+	err := os.WriteFile(filePath, []byte(yamlContent), 0600)
 	require.NoError(t, err)
 
 	// Load from file

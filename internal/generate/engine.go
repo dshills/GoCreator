@@ -194,7 +194,7 @@ func (e *engine) applyPatches(ctx context.Context, patches []models.Patch, outpu
 		Int("patches", len(patches)).
 		Msg("Applying patches to file system")
 
-	var generatedFiles []models.GeneratedFile
+	generatedFiles := make([]models.GeneratedFile, 0, len(patches))
 
 	for i, patch := range patches {
 		log.Debug().

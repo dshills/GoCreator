@@ -205,11 +205,12 @@ func (w *WorkflowExecution) TransitionTo(newStatus WorkflowStatus) error {
 // Validate validates the workflow execution
 func (w *WorkflowExecution) Validate() error {
 	// Check CompletedAt based on status
-	if w.Status == WorkflowStatusPending || w.Status == WorkflowStatusRunning {
+	switch w.Status {
+	case WorkflowStatusPending, WorkflowStatusRunning:
 		if w.CompletedAt != nil {
 			return fmt.Errorf("CompletedAt must be nil for status %s", w.Status)
 		}
-	} else if w.Status == WorkflowStatusCompleted || w.Status == WorkflowStatusFailed {
+	case WorkflowStatusCompleted, WorkflowStatusFailed:
 		if w.CompletedAt == nil {
 			return fmt.Errorf("CompletedAt must be set for status %s", w.Status)
 		}

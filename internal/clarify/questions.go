@@ -201,7 +201,7 @@ func PrioritizeQuestions(questions []models.Question, ambiguities []models.Ambig
 		"minor":     1,
 	}
 
-	var qWithPriority []questionWithPriority
+	qWithPriority := make([]questionWithPriority, 0, len(questions))
 	for i, q := range questions {
 		severity := severityMap[i]
 		priority := priorityMap[severity]

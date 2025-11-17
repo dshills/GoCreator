@@ -24,7 +24,7 @@ func (f *fileOps) AtomicWrite(ctx context.Context, path, content string) error {
 
 	// Ensure parent directory exists
 	dir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
@@ -62,7 +62,7 @@ func (f *fileOps) AtomicWrite(ctx context.Context, path, content string) error {
 	}
 
 	// Set proper permissions on temp file before rename
-	if err := os.Chmod(tempPath, 0644); err != nil {
+	if err := os.Chmod(tempPath, 0600); err != nil {
 		return fmt.Errorf("failed to set permissions on temp file: %w", err)
 	}
 
@@ -148,7 +148,7 @@ func (f *fileOps) AtomicWriteWithBackup(ctx context.Context, path, content strin
 			return "", fmt.Errorf("failed to close backup: %w", err)
 		}
 
-		if err := os.Chmod(backupTempPath, 0644); err != nil {
+		if err := os.Chmod(backupTempPath, 0600); err != nil {
 			return "", fmt.Errorf("failed to set permissions on backup: %w", err)
 		}
 

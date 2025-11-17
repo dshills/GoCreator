@@ -131,6 +131,8 @@ func (f *fileOps) RelativePath(path string) (string, error) {
 // sanitizePath performs additional sanitization checks
 // This is called internally before file operations
 // Note: With proper root containment, this is defense-in-depth
+//
+//nolint:unused // Defense-in-depth function kept for potential future use
 func (f *fileOps) sanitizePath(path string) error {
 	// Normalize the path for checking
 	absPath, err := f.getAbsolutePath(path)

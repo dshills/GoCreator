@@ -112,7 +112,7 @@ func (c *openaiClient) Chat(ctx context.Context, messages []Message) (string, er
 	}
 
 	// Convert messages to langchaingo format
-	var msgContents []llms.MessageContent
+	msgContents := make([]llms.MessageContent, 0, len(messages))
 	for _, msg := range messages {
 		var chatMsgType llms.ChatMessageType
 		switch msg.Role {

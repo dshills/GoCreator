@@ -139,7 +139,7 @@ func ValidateAPIKey(provider Provider, apiKey string) error {
 	switch provider {
 	case ProviderAnthropic:
 		if len(apiKey) < 20 {
-			return fmt.Errorf("Anthropic API key should be at least 20 characters")
+			return fmt.Errorf("anthropic API key should be at least 20 characters")
 		}
 	case ProviderOpenAI:
 		if len(apiKey) < 20 {
@@ -147,7 +147,7 @@ func ValidateAPIKey(provider Provider, apiKey string) error {
 		}
 	case ProviderGoogle:
 		if len(apiKey) < 20 {
-			return fmt.Errorf("Google API key should be at least 20 characters")
+			return fmt.Errorf("google API key should be at least 20 characters")
 		}
 	default:
 		// For unknown providers, basic validation
