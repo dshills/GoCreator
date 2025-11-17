@@ -1,0 +1,532 @@
+# Tasks: GoCreator Core Implementation
+
+**Input**: Design documents from `/specs/001-core-implementation/`
+**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
+
+**Tests**: Test generation is MANDATORY per constitution principle IV (Test-First Discipline). All generated code MUST include comprehensive tests.
+
+**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+
+## Format: `- [ ] [TaskID] [P?] [Story?] Description`
+
+- **[P]**: Can run in parallel (different files, no dependencies)
+- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
+- Include exact file paths in descriptions
+
+## Path Conventions
+
+- **Single project**: `cmd/`, `internal/`, `pkg/`, `tests/` at repository root
+- Paths shown below use single project structure per plan.md
+
+---
+
+## Phase 1: Setup (Project Initialization)
+
+**Purpose**: Initialize project structure, dependencies, and configuration
+
+**Independent Test**: Can create empty project structure, install dependencies, run basic commands (go mod tidy, make help)
+
+### Project Structure
+
+- [ ] T001 Initialize Go module in repository root: `go mod init github.com/dshills/gocreator`
+- [ ] T002 Create cmd/gocreator/main.go entry point with placeholder main function
+- [ ] T003 [P] Create internal/spec/.gitkeep for specification processing package
+- [ ] T004 [P] Create internal/clarify/.gitkeep for clarification engine package
+- [ ] T005 [P] Create internal/generate/.gitkeep for generation engine package
+- [ ] T006 [P] Create internal/workflow/.gitkeep for workflow execution package
+- [ ] T007 [P] Create internal/validate/.gitkeep for validation engine package
+- [ ] T008 [P] Create internal/models/.gitkeep for domain models package
+- [ ] T009 [P] Create internal/config/.gitkeep for configuration management package
+- [ ] T010 [P] Create pkg/langgraph/.gitkeep for LangGraph-Go library
+- [ ] T011 [P] Create pkg/llm/.gitkeep for LLM provider wrapper
+- [ ] T012 [P] Create pkg/fsops/.gitkeep for file system operations
+- [ ] T013 [P] Create tests/unit/.gitkeep for unit tests
+- [ ] T014 [P] Create tests/integration/.gitkeep for integration tests
+- [ ] T015 [P] Create tests/contract/.gitkeep for contract tests
+
+### Configuration Files
+
+- [ ] T016 Create .golangci.yml with linter configuration per quickstart.md
+- [ ] T017 Create Makefile with build, test, lint, clean targets per quickstart.md
+- [ ] T018 Create .gocreator.yaml example configuration file
+- [ ] T019 Create .gitignore for Go projects (bin/, coverage.out, *.test, .gocreator/)
+- [ ] T020 Create README.md with project overview and build instructions
+
+### Dependencies
+
+- [ ] T021 Add github.com/tmc/langchaingo dependency: `go get github.com/tmc/langchaingo`
+- [ ] T022 Add github.com/spf13/cobra dependency: `go get github.com/spf13/cobra`
+- [ ] T023 Add github.com/spf13/viper dependency: `go get github.com/spf13/viper`
+- [ ] T024 Add github.com/rs/zerolog dependency: `go get github.com/rs/zerolog`
+- [ ] T025 Add gopkg.in/yaml.v3 dependency: `go get gopkg.in/yaml.v3`
+- [ ] T026 Add github.com/yuin/goldmark dependency: `go get github.com/yuin/goldmark`
+- [ ] T027 Add github.com/sergi/go-diff dependency: `go get github.com/sergi/go-diff`
+- [ ] T028 Add github.com/xeipuuv/gojsonschema dependency: `go get github.com/xeipuuv/gojsonschema`
+- [ ] T029 Add github.com/stretchr/testify dependency: `go get github.com/stretchr/testify`
+- [ ] T030 Run `go mod tidy` to clean up dependencies
+
+---
+
+## Phase 2: Foundational (Blocking Prerequisites)
+
+**Purpose**: Domain models and core utilities needed by ALL user stories
+
+**Independent Test**: Can instantiate all domain models, validate their fields, serialize/deserialize to JSON
+
+### Domain Models (from data-model.md)
+
+- [ ] T031 [P] Create internal/models/spec.go with InputSpecification struct and validation methods
+- [ ] T032 [P] Create internal/models/clarification.go with ClarificationRequest, ClarificationResponse, Question, Answer structs
+- [ ] T033 [P] Create internal/models/fcs.go with FinalClarifiedSpecification struct and immutability guarantees
+- [ ] T034 [P] Create internal/models/generation.go with GenerationPlan, GenerationOutput, GeneratedFile structs
+- [ ] T035 [P] Create internal/models/validation.go with ValidationReport, BuildResult, LintResult, TestResult structs
+- [ ] T036 [P] Create internal/models/workflow.go with WorkflowDefinition, WorkflowExecution, WorkflowTask structs
+- [ ] T037 [P] Create internal/models/log.go with ExecutionLog, LogEntry, DecisionLog, FileOperationLog, CommandLog structs
+
+### Domain Model Tests
+
+- [ ] T038 [P] Write unit tests for InputSpecification in tests/unit/models_spec_test.go
+- [ ] T039 [P] Write unit tests for ClarificationRequest/Response in tests/unit/models_clarification_test.go
+- [ ] T040 [P] Write unit tests for FinalClarifiedSpecification in tests/unit/models_fcs_test.go
+- [ ] T041 [P] Write unit tests for GenerationPlan/Output in tests/unit/models_generation_test.go
+- [ ] T042 [P] Write unit tests for ValidationReport in tests/unit/models_validation_test.go
+- [ ] T043 [P] Write unit tests for WorkflowDefinition/Execution in tests/unit/models_workflow_test.go
+
+### Core Utilities
+
+- [ ] T044 [P] Create pkg/fsops/safe_fs.go with bounded file operations (read, write, delete within root)
+- [ ] T045 [P] Create pkg/fsops/patch.go with patch application using go-diff library
+- [ ] T046 [P] Write unit tests for safe_fs.go in tests/unit/fsops_safe_test.go
+- [ ] T047 [P] Write unit tests for patch.go in tests/unit/fsops_patch_test.go
+
+### Configuration Management
+
+- [ ] T048 Create internal/config/loader.go with Viper-based configuration loading (file, env, flags)
+- [ ] T049 Create internal/config/defaults.go with default configuration values
+- [ ] T050 Write unit tests for config loader in tests/unit/config_loader_test.go
+
+### Logging Infrastructure
+
+- [ ] T051 Create pkg/logging/logger.go with zerolog wrapper and structured logging helpers
+- [ ] T052 Create pkg/logging/execution_log.go with JSONL execution log writer
+- [ ] T053 Write unit tests for logging in tests/unit/logging_test.go
+
+---
+
+## Phase 3: User Story 1 - Specification Clarification and FCS Generation (Priority: P1)
+
+**Story Goal**: Analyze specs, identify ambiguities, generate clarification questions, produce Final Clarified Specification
+
+**Why this priority**: Without a complete, unambiguous specification, autonomous generation is impossible. This is the foundation.
+
+**Independent Test**: Provide an ambiguous spec, receive clarification questions, provide answers, verify FCS is complete and machine-readable
+
+**Entities Needed**: InputSpecification, ClarificationRequest, ClarificationResponse, FinalClarifiedSpecification
+
+### Specification Parser
+
+- [ ] T054 [US1] Write table-driven tests for YAML spec parsing in tests/unit/spec_parser_yaml_test.go
+- [ ] T055 [US1] Implement YAML spec parser in internal/spec/parser_yaml.go
+- [ ] T056 [P] [US1] Write table-driven tests for JSON spec parsing in tests/unit/spec_parser_json_test.go
+- [ ] T057 [P] [US1] Implement JSON spec parser in internal/spec/parser_json.go
+- [ ] T058 [P] [US1] Write table-driven tests for Markdown spec parsing in tests/unit/spec_parser_md_test.go
+- [ ] T059 [P] [US1] Implement Markdown+frontmatter spec parser in internal/spec/parser_md.go
+- [ ] T060 [US1] Create internal/spec/parser.go with unified Parse() function that delegates to format-specific parsers
+
+### Specification Validator
+
+- [ ] T061 [US1] Write tests for spec validation in tests/unit/spec_validator_test.go
+- [ ] T062 [US1] Implement spec validator in internal/spec/validator.go (syntax, schema, required fields)
+
+### LLM Provider Wrapper
+
+- [ ] T063 [P] [US1] Write tests for LLM provider wrapper in tests/unit/llm_provider_test.go
+- [ ] T064 [P] [US1] Implement LLM provider wrapper in pkg/llm/provider.go using langchaingo
+- [ ] T065 [P] [US1] Implement temperature control (default 0.0) and token tracking in pkg/llm/config.go
+
+### LangGraph-Go Execution Engine
+
+- [ ] T066 [US1] Write tests for LangGraph node execution in tests/unit/langgraph_node_test.go
+- [ ] T067 [US1] Implement LangGraph node interface in pkg/langgraph/node.go
+- [ ] T068 [US1] Write tests for LangGraph state management in tests/unit/langgraph_state_test.go
+- [ ] T069 [US1] Implement typed state management in pkg/langgraph/state.go (no dynamic maps)
+- [ ] T070 [US1] Write tests for LangGraph graph execution in tests/unit/langgraph_graph_test.go
+- [ ] T071 [US1] Implement graph execution engine with DAG traversal in pkg/langgraph/graph.go
+- [ ] T072 [US1] Write tests for checkpointing in tests/unit/langgraph_checkpoint_test.go
+- [ ] T073 [US1] Implement checkpointing with JSON serialization in pkg/langgraph/checkpoint.go
+
+### Clarification Engine
+
+- [ ] T074 [US1] Write tests for ambiguity analyzer in tests/unit/clarify_analyzer_test.go
+- [ ] T075 [US1] Implement ambiguity analyzer in internal/clarify/analyzer.go (identify gaps, conflicts, unclear requirements)
+- [ ] T076 [US1] Write tests for question generator in tests/unit/clarify_questions_test.go
+- [ ] T077 [US1] Implement question generator in internal/clarify/questions.go (create clarification questions with options)
+- [ ] T078 [US1] Write tests for clarification graph in tests/unit/clarify_graph_test.go
+- [ ] T079 [US1] Implement clarification LangGraph in internal/clarify/graph.go (state machine for clarification workflow)
+
+### FCS Builder
+
+- [ ] T080 [US1] Write tests for FCS builder in tests/unit/spec_fcs_builder_test.go
+- [ ] T081 [US1] Implement FCS builder in internal/spec/fcs_builder.go (merge spec + clarifications → FCS)
+- [ ] T082 [US1] Implement FCS hash generation (SHA-256) for integrity verification in internal/spec/fcs_hash.go
+
+### User Story 1 Integration Tests
+
+- [ ] T083 [US1] Write integration test: Parse ambiguous spec → Generate questions → Apply answers → Verify FCS in tests/integration/us1_clarification_flow_test.go
+- [ ] T084 [US1] Write integration test: Parse well-formed spec → Generate FCS without questions in tests/integration/us1_no_clarification_test.go
+- [ ] T085 [US1] Write integration test: Spec with conflicts → Identify conflicts → Present resolution options in tests/integration/us1_conflicts_test.go
+
+---
+
+## Phase 4: User Story 2 - Autonomous Code Generation from FCS (Priority: P2)
+
+**Story Goal**: Generate complete codebase from FCS deterministically without human intervention
+
+**Why this priority**: Core value proposition—transforming specifications into working code autonomously. Depends on P1 (FCS).
+
+**Independent Test**: Provide FCS, run generation, verify complete project structure created. Run twice with same FCS, verify identical output.
+
+**Entities Needed**: FCS, GenerationPlan, GenerationOutput, WorkflowDefinition, WorkflowExecution
+
+**Dependencies**: Requires P1 (FCS generation) to be complete
+
+### Generation Planner
+
+- [ ] T086 [US2] Write tests for architectural planner in tests/unit/generate_planner_test.go
+- [ ] T087 [US2] Implement architectural planner in internal/generate/planner.go (FCS → package structure, file tree)
+- [ ] T088 [US2] Write tests for generation plan builder in tests/unit/generate_plan_builder_test.go
+- [ ] T089 [US2] Implement generation plan builder in internal/generate/plan_builder.go (create GenerationPlan with phases/tasks)
+
+### Code Synthesizer
+
+- [ ] T090 [US2] Write tests for code synthesizer in tests/unit/generate_coder_test.go
+- [ ] T091 [US2] Implement code synthesizer in internal/generate/coder.go (generate Go code using templates and AST manipulation)
+- [ ] T092 [P] [US2] Write tests for test generator in tests/unit/generate_tester_test.go
+- [ ] T093 [P] [US2] Implement test generator in internal/generate/tester.go (generate unit, integration, contract tests)
+
+### Generation Graph
+
+- [ ] T094 [US2] Write tests for generation LangGraph in tests/unit/generate_graph_test.go
+- [ ] T095 [US2] Implement generation LangGraph in internal/generate/graph.go (state machine for generation workflow)
+
+### GoFlow Workflow Engine
+
+- [ ] T096 [US2] Write tests for workflow task definitions in tests/unit/workflow_tasks_test.go
+- [ ] T097 [US2] Implement workflow task definitions in internal/workflow/tasks.go (file_op, shell_cmd, langgraph task types)
+- [ ] T098 [US2] Write tests for workflow engine in tests/unit/workflow_engine_test.go
+- [ ] T099 [US2] Implement workflow engine in internal/workflow/engine.go (parse YAML workflows, execute DAG)
+- [ ] T100 [US2] Write tests for patch application in tests/unit/workflow_patcher_test.go
+- [ ] T101 [US2] Implement patch applicator in internal/workflow/patcher.go (apply unified diffs to files)
+- [ ] T102 [US2] Write tests for parallel execution in tests/unit/workflow_parallel_test.go
+- [ ] T103 [US2] Implement parallel task execution in internal/workflow/parallel.go (worker pools, errgroup coordination)
+
+### Workflow Definitions (YAML)
+
+- [ ] T104 [P] [US2] Create workflows/clarify.yaml workflow definition
+- [ ] T105 [P] [US2] Create workflows/generate.yaml workflow definition
+- [ ] T106 [P] [US2] Create workflows/validate.yaml workflow definition
+
+### Execution Logging
+
+- [ ] T107 [US2] Write tests for execution logger in tests/unit/workflow_logger_test.go
+- [ ] T108 [US2] Implement execution logger in internal/workflow/logger.go (log all operations, decisions, file writes)
+
+### Determinism Verification
+
+- [ ] T109 [US2] Write tests for checksum generation in tests/unit/generate_checksum_test.go
+- [ ] T110 [US2] Implement checksum generator in internal/generate/checksum.go (SHA-256 for all generated files)
+
+### User Story 2 Integration Tests
+
+- [ ] T111 [US2] Write integration test: FCS → Generate code → Verify all files created in tests/integration/us2_generation_complete_test.go
+- [ ] T112 [US2] Write integration test: Same FCS run twice → Verify byte-for-byte identical output in tests/integration/us2_determinism_test.go
+- [ ] T113 [US2] Write integration test: Medium-sized FCS → Verify completion within 90 seconds in tests/integration/us2_performance_test.go
+- [ ] T114 [US2] Write integration test: FCS with tests → Verify test files generated in tests/integration/us2_test_generation_test.go
+
+---
+
+## Phase 5: User Story 3 - Validation and Quality Assurance (Priority: P3)
+
+**Story Goal**: Validate generated code via build, lint, test execution. Report failures without automated repairs.
+
+**Why this priority**: Ensures generated code meets quality standards and works. Depends on P2 (generated code).
+
+**Independent Test**: Generate code, run validation, verify build/lint/test results captured with file-level errors.
+
+**Entities Needed**: ValidationReport, BuildResult, LintResult, TestResult
+
+**Dependencies**: Requires P2 (code generation) to be complete
+
+### Build Validator
+
+- [ ] T115 [US3] Write tests for build validator in tests/unit/validate_build_test.go
+- [ ] T116 [US3] Implement build validator in internal/validate/build.go (run `go build`, capture errors)
+
+### Lint Validator
+
+- [ ] T117 [P] [US3] Write tests for lint validator in tests/unit/validate_lint_test.go
+- [ ] T118 [P] [US3] Implement lint validator in internal/validate/lint.go (run golangci-lint, parse output)
+
+### Test Validator
+
+- [ ] T119 [P] [US3] Write tests for test validator in tests/unit/validate_test_test.go
+- [ ] T120 [P] [US3] Implement test validator in internal/validate/test.go (run `go test`, parse results, capture coverage)
+
+### Validation Report Generator
+
+- [ ] T121 [US3] Write tests for report generator in tests/unit/validate_report_test.go
+- [ ] T122 [US3] Implement validation report generator in internal/validate/report.go (aggregate build/lint/test results)
+
+### User Story 3 Integration Tests
+
+- [ ] T123 [US3] Write integration test: Valid generated code → All validations pass in tests/integration/us3_validation_pass_test.go
+- [ ] T124 [US3] Write integration test: Code with errors → Build failures captured with file:line in tests/integration/us3_build_errors_test.go
+- [ ] T125 [US3] Write integration test: Code with lint issues → Lint failures captured in tests/integration/us3_lint_errors_test.go
+- [ ] T126 [US3] Write integration test: Failing tests → Test failures captured in tests/integration/us3_test_failures_test.go
+
+---
+
+## Phase 6: User Story 4 - Specification Update and Regeneration (Priority: P4)
+
+**Story Goal**: Modify spec, regenerate code, verify changes reflected. Ensure idempotent regeneration.
+
+**Why this priority**: Enables iterative refinement. Supports spec-first workflow.
+
+**Independent Test**: Modify spec, regenerate, verify output reflects changes. Regenerate again, verify identical output.
+
+**Entities Needed**: All from P1-P3 (full pipeline)
+
+**Dependencies**: Requires P1, P2, P3 (complete pipeline)
+
+### Incremental Regeneration
+
+- [ ] T127 [US4] Write tests for change detection in tests/unit/generate_change_detector_test.go
+- [ ] T128 [US4] Implement change detector in internal/generate/change_detector.go (diff FCS versions, identify changed requirements)
+- [ ] T129 [US4] Write tests for incremental regeneration in tests/unit/generate_incremental_test.go
+- [ ] T130 [US4] Implement incremental regeneration logic in internal/generate/incremental.go (regenerate only affected packages)
+
+### Caching Strategy
+
+- [ ] T131 [P] [US4] Write tests for generation cache in tests/unit/generate_cache_test.go
+- [ ] T132 [P] [US4] Implement generation cache in internal/generate/cache.go (cache unchanged portions between runs)
+
+### User Story 4 Integration Tests
+
+- [ ] T133 [US4] Write integration test: Modify spec → Regenerate → Verify changes reflected in tests/integration/us4_spec_modification_test.go
+- [ ] T134 [US4] Write integration test: Same modified spec → Regenerate twice → Verify identical output in tests/integration/us4_idempotent_regen_test.go
+- [ ] T135 [US4] Write integration test: Partial spec change → Verify only affected files regenerated in tests/integration/us4_incremental_regen_test.go
+
+---
+
+## Phase 7: User Story 5 - CLI Operations and Workflow Control (Priority: P5)
+
+**Story Goal**: Provide CLI commands for clarify, generate, validate, full pipeline, dump-fcs operations
+
+**Why this priority**: Enables flexible workflows and CI/CD integration. Depends on all core functionality.
+
+**Independent Test**: Execute each CLI command with test inputs, verify correct outputs, exit codes, and side effects.
+
+**Entities Needed**: All (full system)
+
+**Dependencies**: Requires P1-P4 (all core functionality) to be complete
+
+### CLI Framework (Cobra)
+
+- [ ] T136 [US5] Create cmd/gocreator/cmd/root.go with root command and global flags
+- [ ] T137 [P] [US5] Create cmd/gocreator/cmd/clarify.go with clarify command implementation
+- [ ] T138 [P] [US5] Create cmd/gocreator/cmd/generate.go with generate command implementation
+- [ ] T139 [P] [US5] Create cmd/gocreator/cmd/validate.go with validate command implementation
+- [ ] T140 [P] [US5] Create cmd/gocreator/cmd/full.go with full pipeline command implementation
+- [ ] T141 [P] [US5] Create cmd/gocreator/cmd/dump_fcs.go with dump-fcs command implementation
+- [ ] T142 [P] [US5] Create cmd/gocreator/cmd/version.go with version command implementation
+
+### CLI Main Entry Point
+
+- [ ] T143 [US5] Update cmd/gocreator/main.go to initialize cobra app and execute root command
+
+### Exit Code Handling
+
+- [ ] T144 [US5] Write tests for exit code mapping in tests/unit/cli_exit_codes_test.go
+- [ ] T145 [US5] Implement exit code mapping in cmd/gocreator/cmd/exit_codes.go (per CLI contract)
+
+### Interactive Mode (Clarification Questions)
+
+- [ ] T146 [US5] Write tests for interactive question prompter in tests/unit/cli_interactive_test.go
+- [ ] T147 [US5] Implement interactive question prompter in cmd/gocreator/cmd/interactive.go (display questions, collect answers)
+
+### Batch Mode (Pre-answered Questions)
+
+- [ ] T148 [P] [US5] Write tests for batch mode parser in tests/unit/cli_batch_test.go
+- [ ] T149 [P] [US5] Implement batch mode JSON parser in cmd/gocreator/cmd/batch.go
+
+### Progress Reporting
+
+- [ ] T150 [US5] Write tests for progress reporter in tests/unit/cli_progress_test.go
+- [ ] T151 [US5] Implement progress reporter in cmd/gocreator/cmd/progress.go (console output with status updates)
+
+### User Story 5 Integration Tests
+
+- [ ] T152 [US5] Write CLI integration test: `gocreator clarify <spec>` → Verify questions output and FCS generated in tests/integration/us5_cli_clarify_test.go
+- [ ] T153 [US5] Write CLI integration test: `gocreator generate <spec>` → Verify code generated in tests/integration/us5_cli_generate_test.go
+- [ ] T154 [US5] Write CLI integration test: `gocreator validate <dir>` → Verify validation executed in tests/integration/us5_cli_validate_test.go
+- [ ] T155 [US5] Write CLI integration test: `gocreator full <spec>` → Verify end-to-end pipeline in tests/integration/us5_cli_full_test.go
+- [ ] T156 [US5] Write CLI integration test: `gocreator dump-fcs <spec>` → Verify FCS JSON output in tests/integration/us5_cli_dump_fcs_test.go
+- [ ] T157 [US5] Write CLI integration test: Error handling → Verify correct exit codes in tests/integration/us5_cli_exit_codes_test.go
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
+
+**Purpose**: Final quality improvements, performance optimizations, and system-wide concerns
+
+**Independent Test**: Run full test suite, verify all tests pass. Run linter, verify no issues. Build binary, verify installation works.
+
+### Error Handling
+
+- [ ] T158 [P] Create internal/errors/types.go with custom error types for domain errors
+- [ ] T159 [P] Create internal/errors/wrapping.go with error wrapping helpers (fmt.Errorf with %w)
+- [ ] T160 [P] Write tests for error handling in tests/unit/errors_test.go
+
+### Performance Optimizations
+
+- [ ] T161 [P] Implement LLM response caching (optional, for development) in pkg/llm/cache.go
+- [ ] T162 [P] Write tests for concurrent file generation in tests/unit/generate_concurrent_test.go
+- [ ] T163 [P] Optimize parallel package generation in internal/generate/parallel.go
+
+### Security Hardening
+
+- [ ] T164 [P] Implement command whitelist enforcement in internal/workflow/security.go
+- [ ] T165 [P] Implement path traversal prevention in pkg/fsops/security.go
+- [ ] T166 [P] Write security tests in tests/unit/security_test.go
+
+### Documentation
+
+- [ ] T167 [P] Update README.md with complete usage examples and CLI reference
+- [ ] T168 [P] Create docs/ARCHITECTURE.md documenting system architecture
+- [ ] T169 [P] Create docs/DEVELOPMENT.md with contribution guidelines
+- [ ] T170 [P] Add inline godoc comments to all public APIs
+
+### Examples
+
+- [ ] T171 [P] Create examples/simple-spec.yaml with minimal working example
+- [ ] T172 [P] Create examples/medium-spec.yaml with realistic medium-sized project
+- [ ] T173 [P] Create examples/clarifications.json with batch mode example
+
+### Release Preparation
+
+- [ ] T174 Create .goreleaser.yml for automated releases
+- [ ] T175 Add version information and build metadata to cmd/gocreator/version.go
+- [ ] T176 Create CHANGELOG.md documenting initial release
+
+### Final Validation
+
+- [ ] T177 Run full test suite: `make test` → Verify all tests pass
+- [ ] T178 Run linter: `make lint` → Verify no issues
+- [ ] T179 Run security scanner: `make sec` → Review findings
+- [ ] T180 Run code review via mcp-pr (OpenAI provider) → Address findings
+- [ ] T181 Verify test coverage meets 80% minimum requirement
+- [ ] T182 Build binary: `make build` → Verify successful compilation
+- [ ] T183 Manual end-to-end test: Run gocreator full on examples/simple-spec.yaml → Verify working output
+
+---
+
+## Dependencies & Execution Strategy
+
+### User Story Completion Order
+
+```
+P1 (US1): Specification Clarification & FCS Generation
+    ↓ (FCS is required for generation)
+P2 (US2): Autonomous Code Generation
+    ↓ (Generated code is required for validation)
+P3 (US3): Validation & Quality Assurance
+    ↓ (All core features needed)
+P4 (US4): Specification Update & Regeneration
+    ↓ (Complete pipeline needed)
+P5 (US5): CLI Operations & Workflow Control
+```
+
+**Critical Path**: US1 → US2 → US3 → US5 (US4 can be developed in parallel with US5)
+
+### Parallel Execution Opportunities
+
+**Phase 1 (Setup)**: All tasks T003-T015 (directory creation) can run in parallel
+
+**Phase 2 (Foundational)**:
+- All domain model creation (T031-T037) can run in parallel
+- All domain model tests (T038-T043) can run in parallel after models complete
+- Core utilities (T044-T047) can run in parallel
+- Config and logging can run in parallel
+
+**User Story 1 (P1)**:
+- Spec parsers for different formats (T055, T057, T059) can run in parallel
+- LLM provider and LangGraph engine can develop in parallel
+
+**User Story 2 (P2)**:
+- Code synthesizer and test generator (T091, T093) can run in parallel
+- Workflow task definitions (T104-T106) can run in parallel
+
+**User Story 3 (P3)**:
+- Build, lint, test validators (T116, T118, T120) can run in parallel
+
+**User Story 5 (P5)**:
+- All CLI command files (T137-T142) can run in parallel
+- Interactive and batch mode (T147, T149) can run in parallel
+
+**Phase 8 (Polish)**:
+- All documentation tasks (T167-T169) can run in parallel
+- All example files (T171-T173) can run in parallel
+
+### MVP (Minimum Viable Product) Scope
+
+**Suggested MVP**: User Story 1 ONLY (Specification Clarification & FCS Generation)
+
+**Includes**:
+- Phase 1: Setup (T001-T030)
+- Phase 2: Foundational (T031-T053)
+- Phase 3: User Story 1 (T054-T085)
+- Selected Phase 8 tasks: Error handling, basic docs (T158-T160, T167)
+
+**MVP Deliverable**: CLI tool that can parse specs, identify ambiguities, ask clarification questions, and produce a Final Clarified Specification (FCS)
+
+**MVP Value**: Validates the hardest part (LLM integration, clarification workflow) before building full code generation
+
+### Incremental Delivery Plan
+
+1. **Sprint 1 (MVP)**: US1 - Clarification & FCS (T001-T085 + selected T158-T167)
+2. **Sprint 2**: US2 - Code Generation (T086-T114)
+3. **Sprint 3**: US3 - Validation (T115-T126)
+4. **Sprint 4**: US5 - CLI Polish (T136-T157)
+5. **Sprint 5**: US4 - Incremental Regeneration + Final Polish (T127-T135, T158-T183)
+
+---
+
+## Summary
+
+**Total Tasks**: 183
+**User Story Breakdown**:
+- Setup (Phase 1): 30 tasks
+- Foundational (Phase 2): 23 tasks
+- US1 (P1): 32 tasks (54-85)
+- US2 (P2): 29 tasks (86-114)
+- US3 (P3): 12 tasks (115-126)
+- US4 (P4): 9 tasks (127-135)
+- US5 (P5): 22 tasks (136-157)
+- Polish (Phase 8): 26 tasks (158-183)
+
+**Parallel Opportunities**: ~60 tasks marked with [P] can run in parallel
+
+**Independent Test Criteria**:
+- ✅ US1: Parse spec → Get questions → Answer → Verify FCS complete
+- ✅ US2: Provide FCS → Generate code → Verify all files + determinism
+- ✅ US3: Generate code → Validate → Verify results captured
+- ✅ US4: Modify spec → Regenerate → Verify changes reflected
+- ✅ US5: Execute CLI commands → Verify outputs and exit codes
+
+**MVP Scope**: 85 tasks (Phase 1 + Phase 2 + US1 + selected polish)
+
+**Estimated Timeline** (with concurrent execution):
+- MVP (US1): 2-3 weeks
+- Full Implementation (US1-US5): 6-8 weeks
+
+All tasks follow the strict checklist format with Task IDs, [P] markers for parallelization, [Story] labels, and exact file paths.

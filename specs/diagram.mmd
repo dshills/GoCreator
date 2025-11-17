@@ -1,0 +1,58 @@
+flowchart TD
+  %% =========================
+  %% User & Entry Points
+  %% =========================
+  U["Developer"] -->|Provides spec and answers| CLI["GoCreator CLI"]
+
+  subgraph UI["User Interface Layer"]
+    CLI --> CFG["Config and Spec Loader"]
+  end
+
+  %% =========================
+  %% Specification Flow
+  %% =========================
+  CFG --> IS["Input Specification (IS)"]
+  IS -->|for analysis| CLARIFY["Clarification Engine (LangGraph-Go)"]
+  CLARIFY -->|questions| QLIST["Clarification Questions"]
+  U -->|answers| QANS["Clarification Answers"]
+  QANS --> CLARIFY
+
+  CLARIFY --> FCS["Final Clarified Specification (FCS)"]
+
+  %% =========================
+  %% Reasoning & Generation
+  %% =========================
+  subgraph REASON["Reasoning & Generation Layer (LangGraph-Go)"]
+    FCS --> PLAN["Architectural Planner"]
+    PLAN --> GEN["Code and Artifact Generator"]
+    GEN --> ARTIFACTS["Artifacts and Patch Set"]
+  end
+
+  %% =========================
+  %% Execution / Orchestration
+  %% =========================
+  subgraph EXEC["Execution Layer (GoFlow + MCP)"]
+    ARTIFACTS --> WF["GoFlow Workflows"]
+
+    WF --> FS_MCP["Filesystem MCP (read/write/apply patch)"]
+    WF --> CMD_MCP["Command MCP (go build/test/vet/lint)"]
+    WF --> GIT_MCP["Git MCP (optional branches/commits)"]
+    WF --> VAL["Validation Workflows"]
+  end
+
+  FS_MCP --> CODEBASE["Generated Go Codebase (files on disk)"]
+
+  CMD_MCP --> VAL
+  VAL --> REPORT["Validation Report (build/test/lint results)"]
+
+  %% =========================
+  %% Outputs / Review Loop
+  %% =========================
+  CODEBASE --> OUT1["Project Ready for Review"]
+  REPORT --> OUT2["Validation Summary"]
+
+  OUT1 --> U
+  OUT2 --> U
+
+  %% Feedback loop via spec edits, not chat
+  U -. "Refine spec and rerun" .-> CFG

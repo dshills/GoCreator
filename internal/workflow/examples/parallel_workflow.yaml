@@ -1,0 +1,97 @@
+# Parallel Execution Workflow
+# Demonstrates concurrent task execution with dependencies
+
+schema_version: "1.0"
+name: "Parallel Package Generation"
+version: "1.0"
+
+config:
+  max_parallel: 4
+  retries: 2
+  timeout: "15m"
+  allowed_commands:
+    - go
+    - gofmt
+
+tasks:
+  # Independent tasks that can run in parallel
+  - id: create_models
+    name: "Create Models Package"
+    type: file_op
+    inputs:
+      operation: write
+      path: "internal/models/user.go"
+      content: |
+        package models
+
+        type User struct {
+          ID   string
+          Name string
+        }
+    outputs:
+      - models_created
+
+  - id: create_handlers
+    name: "Create Handlers Package"
+    type: file_op
+    inputs:
+      operation: write
+      path: "internal/handlers/user.go"
+      content: |
+        package handlers
+
+        import "net/http"
+
+        func UserHandler(w http.ResponseWriter, r *http.Request) {
+          w.Write([]byte("User handler"))
+        }
+    outputs:
+      - handlers_created
+
+  - id: create_services
+    name: "Create Services Package"
+    type: file_op
+    inputs:
+      operation: write
+      path: "internal/services/user.go"
+      content: |
+        package services
+
+        type UserService struct{}
+
+        func NewUserService() *UserService {
+          return &UserService{}
+        }
+    outputs:
+      - services_created
+
+  - id: create_repository
+    name: "Create Repository Package"
+    type: file_op
+    inputs:
+      operation: write
+      path: "internal/repository/user.go"
+      content: |
+        package repository
+
+        type UserRepository interface {
+          FindByID(id string) (*User, error)
+        }
+    outputs:
+      - repository_created
+
+  # Format all files after they're created (depends on all previous tasks)
+  - id: format_code
+    name: "Format Generated Code"
+    type: shell_cmd
+    dependencies:
+      - create_models
+      - create_handlers
+      - create_services
+      - create_repository
+    inputs:
+      cmd: "gofmt"
+      args:
+        - "-w"
+        - "internal/"
+    timeout: "1m"

@@ -1,0 +1,312 @@
+# golangci-lint configuration for LangGraph-Go
+# Aligned with constitution.md principles: type safety, interfaces, TDD, observability
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+  go: '1.25'
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+
+linters:
+  enable:
+    # Core linters (always enabled)
+    - errcheck        # Check for unchecked errors
+    - govet           # Go vet examines code
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Advanced static analysis (includes gosimple)
+    - unused          # Check for unused constants, variables, functions
+
+    # Code quality
+    - gocyclo         # Cyclomatic complexity
+    - misspell        # Finds commonly misspelled English words
+    - unconvert       # Remove unnecessary type conversions
+    # unparam disabled - see disable section
+    - nakedret        # Finds naked returns
+    - prealloc        # Finds slice declarations that could be preallocated
+
+    # Bug detection
+    - bodyclose       # Checks whether HTTP response body is closed
+    - gocritic        # Provides many diagnostics
+    - gosec           # Security problems
+    - nilerr          # Returns nil even if error is not nil
+    - noctx           # Finds sending http request without context.Context
+    - rowserrcheck    # Checks whether Err of rows is checked
+    - sqlclosecheck   # Checks that sql.Rows and sql.Stmt are closed
+
+    # Style & best practices
+    - dogsled         # Checks assignments with too many blank identifiers
+    - errname         # Checks that sentinel errors are prefixed with Err
+    - errorlint       # Error wrapping with Go 1.13+
+    - copyloopvar     # Checks loop variable copying (replaces exportloopref)
+    - gochecknoinits  # Checks that no init functions are present
+    # goconst disabled - test string constants don't add value, see disable section
+    - revive          # Fast, configurable linter
+    - whitespace      # Detection of leading and trailing whitespace
+
+  disable:
+    - exhaustive      # Too strict for switch statements
+    - funlen          # Function length - use gocyclo instead
+    - gochecknoglobals # Globals sometimes needed
+    - gocognit        # Covered by gocyclo
+    - godot           # Comment punctuation - too noisy
+    - godox           # TODO/FIXME comments are intentional project markers
+    - goconst         # Test string constants don't justify extraction
+    - gocritic        # Re-enable with specific disabled-checks if needed
+    - gocyclo         # Orchestration and comprehensive test functions justify complexity
+    - mnd             # Magic number detector - too noisy
+    - lll             # Line length - formatters handle this
+    - nlreturn        # Too opinionated
+    - testpackage     # Separate test packages too strict
+    - unparam         # Too many false positives for interface implementations
+    - wsl             # Whitespace linter - too opinionated
+    - wrapcheck       # Error wrapping - too strict
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+      - (io.Closer).Close
+
+  govet:
+    enable:
+      - atomic
+      - bool
+      - composites
+      - copylocks
+      - errorsas
+      - httpresponse
+      - ifaceassert
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - printf
+      - shift
+      - stdmethods
+      - stringintconv
+      - structtag
+      - tests
+      - unmarshal
+      - unreachable
+      - unsafeptr
+      - unusedresult
+    disable:
+      - shadow  # Too many false positives with generics
+
+  gocyclo:
+    min-complexity: 50  # Increased to 50 - orchestration/coordination logic can be legitimately complex
+
+  misspell:
+    locale: US
+    ignore-words:
+      - som
+      - colour
+
+  nakedret:
+    max-func-lines: 30
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+    disabled-checks:
+      - commentedOutCode
+      - whyNoLint
+      - ifElseChain  # Switch statements can reduce readability in some cases
+
+  gosec:
+    excludes:
+      - G104  # Duplicate of errcheck
+      - G307  # Defer close - covered by errcheck
+    severity: high  # Only show high severity issues
+    confidence: high  # Only high confidence issues
+
+  goconst:
+    min-len: 3
+    min-occurrences: 5  # Increased from 3 - only flag frequently repeated strings
+    ignore-tests: true
+
+  godot:
+    scope: declarations
+    capital: true
+
+  revive:
+    enable-all-rules: false
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      # - name: dot-imports  # Disabled - acceptable in test files for readability
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+        arguments:
+          - checkPrivateReceivers
+          - sayRepetitiveInsteadOfStutters
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+  unused:
+    field-writes-are-uses: true
+    post-statements-are-reads: true
+    exported-is-used: true
+    exported-fields-are-used: true
+    parameters-are-used: true
+    local-variables-are-used: true
+
+  unparam:
+    check-exported: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+  exclude-rules:
+    # Exclude some linters from test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - gosec
+        - goconst  # Test string constants add no value
+        - funlen
+        - gocognit
+        - prealloc  # Pre-allocation less important in tests
+
+    # Exclude goconst from tests (sometimes ignore-tests setting doesn't work)
+    - text: "has \\d+ occurrences, make it a constant"
+      linters:
+        - goconst
+      path: _test\.go
+
+    # Exclude godot from test function comments
+    - path: _test\.go
+      text: "comment should end in a period"
+      linters:
+        - godot
+
+    # Generic type parameters can be single letters
+    - text: "parameter name '\\w' is too short"
+      linters:
+        - revive
+
+    # Context.Context as first parameter is idiomatic
+    - text: "context.Context should be the first parameter"
+      linters:
+        - revive
+
+    # Unused parameters common in test functions and interface implementations
+    - text: "unused-parameter.*seems to be unused"
+      linters:
+        - revive
+      path: _test\.go
+
+    # Unused t parameter in test helper functions (interface compliance)
+    - text: "unused-parameter.*parameter 't' seems to be unused"
+      linters:
+        - revive
+      path: _test\.go
+
+    # Unused test helper functions (kept for consistency and future use)
+    - text: "func .* is unused"
+      linters:
+        - unused
+      path: _test\.go
+
+    # Variable shadowing built-ins acceptable in test code for clarity
+    - text: "redefines-builtin-id"
+      linters:
+        - revive
+      path: _test\.go
+
+    # Explicit nil initialization acceptable for clarity in tests
+    - text: "var-declaration.*should drop = nil"
+      linters:
+        - revive
+      path: _test\.go
+
+    # Loop simplification not always clearer in test code
+    - text: "S1011.*should replace loop with"
+      linters:
+        - staticcheck
+      path: _test\.go
+
+    # Dot imports acceptable in test files for readability
+    - text: "dot-imports"
+      linters:
+        - revive
+      path: _test\.go
+
+    # Disable gocritic ifElseChain entirely
+    - text: "ifElseChain: rewrite if-else to switch statement"
+      linters:
+        - gocritic
+
+    # Disable gosec G404 (weak RNG acceptable in tests for determinism)
+    - text: "G404"
+      linters:
+        - gosec
+
+    # Disable gosec G115 (integer overflow in bounded test loops)
+    - text: "G115"
+      linters:
+        - gosec
+
+    # Disable staticcheck QF1003 (tagged switch suggestion)
+    - text: "QF1003"
+      linters:
+        - staticcheck
+
+    # Example code can use simplified patterns
+    - path: examples/
+      linters:
+        - prealloc
+        - goconst
+
+    # ifElseChain warnings - switch statements can reduce readability
+    - text: "ifElseChain:"
+      linters:
+        - gocritic
+
+    # High complexity acceptable in comprehensive test functions and orchestration code
+    - text: "cyclomatic complexity.*is high"
+      linters:
+        - gocyclo
+
+  exclude-use-default: false
+
+severity:
+  default-severity: error
+  case-sensitive: false

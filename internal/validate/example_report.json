@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "output_id": "output-abc123",
+  "build_result": {
+    "success": false,
+    "errors": [
+      {
+        "file": "internal/generator/template.go",
+        "line": 42,
+        "column": 15,
+        "message": "undefined: templateEngine"
+      },
+      {
+        "file": "cmd/gocreator/main.go",
+        "line": 78,
+        "column": 0,
+        "message": "imported and not used: \"github.com/spf13/viper\""
+      }
+    ],
+    "warnings": [
+      {
+        "file": "internal/utils/helpers.go",
+        "line": 12,
+        "message": "unused function: formatString"
+      }
+    ],
+    "duration": 2500000000
+  },
+  "lint_result": {
+    "success": false,
+    "issues": [
+      {
+        "file": "internal/spec/parser.go",
+        "line": 156,
+        "column": 2,
+        "severity": "error",
+        "rule": "errcheck",
+        "message": "Error return value is not checked"
+      },
+      {
+        "file": "internal/validate/test.go",
+        "line": 89,
+        "column": 1,
+        "severity": "warning",
+        "rule": "golint",
+        "message": "exported function ValidateTests should have comment"
+      },
+      {
+        "file": "internal/models/validation.go",
+        "line": 23,
+        "column": 5,
+        "severity": "error",
+        "rule": "staticcheck",
+        "message": "this value of err is never used"
+      }
+    ],
+    "duration": 5200000000
+  },
+  "test_result": {
+    "success": false,
+    "total_tests": 156,
+    "passed_tests": 153,
+    "failed_tests": 3,
+    "failures": [
+      {
+        "package": "github.com/dshills/gocreator/internal/spec",
+        "test": "TestParseSpecification",
+        "message": "Expected nil error, got: invalid YAML syntax",
+        "location": "internal/spec/parser_test.go:45"
+      },
+      {
+        "package": "github.com/dshills/gocreator/internal/validate",
+        "test": "TestBuildValidator_Success",
+        "message": "Build should succeed but failed with 2 errors",
+        "location": "tests/unit/validate_build_test.go:78"
+      },
+      {
+        "package": "github.com/dshills/gocreator/internal/models",
+        "test": "TestFCS_Validate",
+        "message": "FCS validation should fail for missing requirements",
+        "location": "tests/unit/fcs_test.go:112"
+      }
+    ],
+    "coverage": 78.5,
+    "duration": 12800000000
+  },
+  "overall_status": "fail",
+  "created_at": "2025-11-17T15:30:45Z"
+}

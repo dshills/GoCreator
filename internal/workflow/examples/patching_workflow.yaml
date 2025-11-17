@@ -1,0 +1,92 @@
+# Patching Workflow Example
+# Demonstrates applying patches to existing files
+
+schema_version: "1.0"
+name: "Code Modification with Patches"
+version: "1.0"
+
+config:
+  max_parallel: 4
+  retries: 1
+  timeout: "5m"
+  allowed_commands:
+    - go
+
+tasks:
+  # Task 1: Create initial file
+  - id: create_initial_file
+    name: "Create Initial File"
+    type: file_op
+    inputs:
+      operation: write
+      path: "pkg/calculator/calculator.go"
+      content: |
+        package calculator
+
+        func Add(a, b int) int {
+          return a + b
+        }
+
+        func Subtract(a, b int) int {
+          return a - b
+        }
+    outputs:
+      - initial_file_created
+
+  # Task 2: Apply patch to add multiplication function
+  - id: add_multiply_function
+    name: "Add Multiply Function"
+    type: patch
+    dependencies:
+      - create_initial_file
+    inputs:
+      target_file: "pkg/calculator/calculator.go"
+      diff: |
+        @@ -6,3 +6,8 @@
+         func Subtract(a, b int) int {
+           return a - b
+         }
+        +
+        +func Multiply(a, b int) int {
+        +  return a * b
+        +}
+      reversible: true
+    outputs:
+      - multiply_added
+
+  # Task 3: Apply another patch to add division function
+  - id: add_divide_function
+    name: "Add Divide Function"
+    type: patch
+    dependencies:
+      - add_multiply_function
+    inputs:
+      target_file: "pkg/calculator/calculator.go"
+      diff: |
+        @@ -10,3 +10,11 @@
+         func Multiply(a, b int) int {
+           return a * b
+         }
+        +
+        +func Divide(a, b int) (int, error) {
+        +  if b == 0 {
+        +    return 0, fmt.Errorf("division by zero")
+        +  }
+        +  return a / b, nil
+        +}
+      reversible: true
+    outputs:
+      - divide_added
+
+  # Task 4: Verify code compiles
+  - id: verify_build
+    name: "Verify Build"
+    type: shell_cmd
+    dependencies:
+      - add_divide_function
+    inputs:
+      cmd: "go"
+      args:
+        - "build"
+        - "./pkg/calculator"
+    timeout: "30s"

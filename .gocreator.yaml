@@ -1,0 +1,25 @@
+llm:
+  provider: anthropic
+  model: claude-sonnet-4
+  temperature: 0.0
+  api_key: ${ANTHROPIC_API_KEY}
+
+workflow:
+  root_dir: ./generated
+  allow_commands:
+    - go
+    - git
+    - golangci-lint
+  max_parallel: 4
+
+validation:
+  enable_linting: true
+  linter_config: .golangci.yml
+  enable_tests: true
+  test_timeout: 5m
+
+logging:
+  level: info
+  format: console
+  output: stderr
+  execution_log: .gocreator/execution.jsonl
