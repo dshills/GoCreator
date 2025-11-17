@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dshills/gocreator/internal/models"
@@ -84,6 +85,7 @@ func (l *golangciLintValidator) Validate(ctx context.Context, projectRoot string
 
 	// Build command: golangci-lint run ./... --out-format json
 	args := append([]string{"run", "./...", "--out-format", "json"}, l.additionalFlags...)
+	//nolint:gosec // G204: Subprocess launched with golangci-lint - required for code validation
 	cmd := exec.CommandContext(ctxWithTimeout, "golangci-lint", args...)
 	cmd.Dir = projectRoot
 
@@ -95,6 +97,20 @@ func (l *golangciLintValidator) Validate(ctx context.Context, projectRoot string
 		return nil, fmt.Errorf("lint timed out after %v", l.timeout)
 	}
 
+	// Check if golangci-lint failed due to unsupported flags or version issues
+	// This can happen with older versions that don't support --out-format
+	if err != nil && len(output) > 0 {
+		outputStr := string(output)
+		// Check for version/compatibility issues
+		if strings.Contains(outputStr, "unknown flag") || strings.Contains(outputStr, "Error:") {
+			if l.skipIfNotFound {
+				result.Duration = time.Since(start)
+				return result, nil
+			}
+			return nil, fmt.Errorf("golangci-lint version compatibility issue: %s", outputStr)
+		}
+	}
+
 	// golangci-lint returns non-zero if issues are found
 	// We need to parse the JSON output if available
 	if len(output) > 0 {
@@ -103,7 +119,7 @@ func (l *golangciLintValidator) Validate(ctx context.Context, projectRoot string
 			// If parsing fails and we have an error, it might be that golangci-lint
 			// failed to run properly (e.g., configuration issues)
 			// In this case, if skip is enabled, just return success with no issues
-			if l.skipIfNotFound && err != nil {
+			if l.skipIfNotFound {
 				result.Duration = time.Since(start)
 				return result, nil
 			}

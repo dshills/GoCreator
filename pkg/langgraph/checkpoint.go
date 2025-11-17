@@ -1,3 +1,4 @@
+// Package langgraph provides LangGraph-inspired state management for AI workflows.
 package langgraph
 
 import (
@@ -48,7 +49,7 @@ type FileCheckpointManager struct {
 // NewFileCheckpointManager creates a new file-based checkpoint manager
 func NewFileCheckpointManager(baseDir string) (*FileCheckpointManager, error) {
 	// Create base directory if it doesn't exist
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	if err := os.MkdirAll(baseDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create checkpoint directory: %w", err)
 	}
 
@@ -78,7 +79,7 @@ func (m *FileCheckpointManager) Save(ctx ExecutionContext, state State) error {
 
 	// Create graph-specific directory
 	graphDir := filepath.Join(m.baseDir, ctx.GraphID)
-	if err := os.MkdirAll(graphDir, 0755); err != nil {
+	if err := os.MkdirAll(graphDir, 0750); err != nil {
 		return fmt.Errorf("failed to create graph checkpoint directory: %w", err)
 	}
 
@@ -89,7 +90,7 @@ func (m *FileCheckpointManager) Save(ctx ExecutionContext, state State) error {
 		return fmt.Errorf("failed to marshal checkpoint: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0600); err != nil {
 		return fmt.Errorf("failed to write checkpoint file: %w", err)
 	}
 
@@ -155,6 +156,7 @@ func (m *FileCheckpointManager) List(graphID string) ([]*Checkpoint, error) {
 
 		// Read checkpoint file
 		filename := filepath.Join(graphDir, entry.Name())
+		//nolint:gosec // G304: Reading checkpoint file - required for checkpoint recovery
 		data, err := os.ReadFile(filename)
 		if err != nil {
 			log.Warn().

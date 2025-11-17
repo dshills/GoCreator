@@ -1,3 +1,4 @@
+// Package fsops provides safe, bounded file operations with atomic writes.
 package fsops
 
 import (
@@ -39,19 +40,19 @@ func (f *fileOps) AtomicWrite(ctx context.Context, path, content string) error {
 	defer func() {
 		// Only remove temp file if it still exists (not renamed)
 		if _, err := os.Stat(tempPath); err == nil {
-			os.Remove(tempPath)
+			_ = os.Remove(tempPath) // Best effort cleanup
 		}
 	}()
 
 	// Write content to temp file
 	if _, err := tempFile.WriteString(content); err != nil {
-		tempFile.Close()
+		_ = tempFile.Close() // Best effort cleanup
 		return fmt.Errorf("failed to write to temp file: %w", err)
 	}
 
 	// Sync to ensure data is written to disk
 	if err := tempFile.Sync(); err != nil {
-		tempFile.Close()
+		_ = tempFile.Close() // Best effort cleanup
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
@@ -129,17 +130,17 @@ func (f *fileOps) AtomicWriteWithBackup(ctx context.Context, path, content strin
 
 		defer func() {
 			if _, err := os.Stat(backupTempPath); err == nil {
-				os.Remove(backupTempPath)
+				_ = os.Remove(backupTempPath) // Best effort cleanup
 			}
 		}()
 
 		if _, err := backupTempFile.WriteString(existingContent); err != nil {
-			backupTempFile.Close()
+			_ = backupTempFile.Close() // Best effort cleanup
 			return "", fmt.Errorf("failed to write backup: %w", err)
 		}
 
 		if err := backupTempFile.Sync(); err != nil {
-			backupTempFile.Close()
+			_ = backupTempFile.Close() // Best effort cleanup
 			return "", fmt.Errorf("failed to sync backup: %w", err)
 		}
 

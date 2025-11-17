@@ -49,6 +49,7 @@ func NewFileLogger(logDir string) (*FileLogger, error) {
 	logPath := filepath.Join(logDir, "file_operations.jsonl")
 
 	// Open file in append mode
+	//nolint:gosec // G304: Opening log file - required for file operation logging
 	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)

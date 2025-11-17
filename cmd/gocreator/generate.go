@@ -62,7 +62,7 @@ func init() {
 	generateCmd.Flags().BoolVar(&generateDryRun, "dry-run", false, "show what would be generated without writing files")
 }
 
-func runGenerate(cmd *cobra.Command, args []string) error {
+func runGenerate(_ *cobra.Command, args []string) error {
 	specFile := args[0]
 
 	log.Info().
@@ -140,6 +140,7 @@ func runClarificationPhase(specFile, batchFile string) (*models.FinalClarifiedSp
 	}
 
 	// Read spec file
+	//nolint:gosec // G304: Reading user-provided spec file - required for CLI functionality
 	content, err := os.ReadFile(specFile)
 	if err != nil {
 		return nil, ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to read spec file: %w", err)}
@@ -186,7 +187,7 @@ type generationPlan struct {
 	Files    []string
 }
 
-func runPlanningPhase(fcs *models.FinalClarifiedSpecification) (*generationPlan, error) {
+func runPlanningPhase(_ *models.FinalClarifiedSpecification) (*generationPlan, error) {
 	// TODO: Implement actual planning logic
 	log.Warn().Msg("Planning phase not yet fully implemented")
 
@@ -197,7 +198,7 @@ func runPlanningPhase(fcs *models.FinalClarifiedSpecification) (*generationPlan,
 	}, nil
 }
 
-func runCodeGeneration(plan *generationPlan, outputDir string, dryRun bool) error {
+func runCodeGeneration(_ *generationPlan, outputDir string, dryRun bool) error {
 	// TODO: Implement actual code generation
 	log.Warn().Msg("Code generation not yet fully implemented")
 
@@ -218,7 +219,7 @@ func runFinalization(outputDir string, dryRun bool) error {
 	if !dryRun {
 		// Create .gocreator directory
 		metaDir := filepath.Join(outputDir, ".gocreator")
-		if err := os.MkdirAll(metaDir, 0755); err != nil {
+		if err := os.MkdirAll(metaDir, 0750); err != nil {
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create metadata directory: %w", err)}
 		}
 	}

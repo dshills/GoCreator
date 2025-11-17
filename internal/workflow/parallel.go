@@ -105,7 +105,6 @@ func (e *ParallelExecutor) Execute(ctx context.Context, tasks []models.WorkflowT
 
 		for _, taskID := range levelTasks {
 			taskID := taskID // Capture for goroutine
-
 			g.Go(func() error {
 				// Get task definition
 				taskDef, exists := graph.GetNode(taskID)

@@ -187,6 +187,7 @@ func (f *fileOps) ReadFile(ctx context.Context, path string) (string, error) {
 		return "", fmt.Errorf("failed to log operation: %w", err)
 	}
 
+	//nolint:gosec // G304: File inclusion required for bounded file operations
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", path, err)

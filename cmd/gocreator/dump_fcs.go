@@ -63,7 +63,7 @@ func init() {
 	dumpFCSCmd.Flags().BoolVar(&dumpFCSPretty, "pretty", true, "pretty-print JSON")
 }
 
-func runDumpFCS(cmd *cobra.Command, args []string) error {
+func runDumpFCS(_ *cobra.Command, args []string) error {
 	specFile := args[0]
 
 	log.Info().
@@ -80,6 +80,7 @@ func runDumpFCS(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read spec file
+	//nolint:gosec // G304: Reading user-provided spec file - required for CLI functionality
 	content, err := os.ReadFile(specFile)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to read spec file")
@@ -145,7 +146,7 @@ func runDumpFCS(cmd *cobra.Command, args []string) error {
 	// Output FCS
 	if dumpFCSOutput != "" {
 		// Write to file
-		if err := os.WriteFile(dumpFCSOutput, jsonData, 0644); err != nil {
+		if err := os.WriteFile(dumpFCSOutput, jsonData, 0600); err != nil {
 			log.Error().Err(err).Msg("Failed to write FCS file")
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to write FCS file: %w", err)}
 		}

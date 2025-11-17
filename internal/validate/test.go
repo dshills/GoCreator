@@ -90,6 +90,7 @@ func (t *goTestValidator) Validate(ctx context.Context, projectRoot string) (*mo
 	args := []string{"test", "./...", "-coverprofile=" + coverageFile, "-v"}
 	args = append(args, t.additionalFlags...)
 
+	//nolint:gosec // G204: Subprocess launched with go test - required for test validation
 	cmd := exec.CommandContext(ctxWithTimeout, "go", args...)
 	cmd.Dir = projectRoot
 
@@ -218,11 +219,12 @@ func parseTestOutput(output string) (totalTests int, passedTests int, failures [
 // package/file.go:10.2,12.3 2 1
 // package/file.go:14.5,16.8 3 0
 func parseCoverage(coverageFile string) (float64, error) {
+	//nolint:gosec // G304: Reading coverage file - required for test validation
 	file, err := os.Open(coverageFile)
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var totalStatements int
 	var coveredStatements int

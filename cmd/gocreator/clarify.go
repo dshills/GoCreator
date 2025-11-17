@@ -1,3 +1,4 @@
+// Package main implements the GoCreator CLI application.
 package main
 
 import (
@@ -58,7 +59,7 @@ func init() {
 	clarifyCmd.Flags().StringVar(&clarifyBatch, "batch", "", "path to JSON file with pre-answered questions")
 }
 
-func runClarify(cmd *cobra.Command, args []string) error {
+func runClarify(_ *cobra.Command, args []string) error {
 	specFile := args[0]
 
 	log.Info().
@@ -78,6 +79,7 @@ func runClarify(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read spec file
+	//nolint:gosec // G304: Reading user-provided spec file - required for CLI functionality
 	content, err := os.ReadFile(specFile)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to read spec file")
@@ -136,7 +138,7 @@ func runClarify(cmd *cobra.Command, args []string) error {
 
 	// Ensure output directory exists
 	fcsDir := filepath.Join(clarifyOutput, ".gocreator")
-	if err := os.MkdirAll(fcsDir, 0755); err != nil {
+	if err := os.MkdirAll(fcsDir, 0750); err != nil {
 		log.Error().Err(err).Msg("Failed to create output directory")
 		return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create output directory: %w", err)}
 	}
@@ -179,7 +181,7 @@ func writeFCS(fcs *models.FinalClarifiedSpecification, path string) error {
 		return fmt.Errorf("failed to marshal FCS: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("failed to write FCS file: %w", err)
 	}
 

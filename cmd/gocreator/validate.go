@@ -60,7 +60,7 @@ func init() {
 	validateCmd.Flags().StringVarP(&validateReport, "report", "r", "", "output validation report to file (JSON format)")
 }
 
-func runValidate(cmd *cobra.Command, args []string) error {
+func runValidate(_ *cobra.Command, args []string) error {
 	projectRoot := args[0]
 
 	log.Info().
@@ -234,7 +234,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to marshal report: %w", err)}
 		}
 
-		if err := os.WriteFile(validateReport, data, 0644); err != nil {
+		if err := os.WriteFile(validateReport, data, 0600); err != nil {
 			log.Error().Err(err).Msg("Failed to write report")
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to write report: %w", err)}
 		}

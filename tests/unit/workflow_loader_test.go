@@ -385,8 +385,9 @@ func TestWorkflowLoader_RoundTrip(t *testing.T) {
 		assert.Equal(t, original.Tasks[i].ID, loaded.Tasks[i].ID)
 		assert.Equal(t, original.Tasks[i].Name, loaded.Tasks[i].Name)
 		assert.Equal(t, original.Tasks[i].Type, loaded.Tasks[i].Type)
-		assert.Equal(t, original.Tasks[i].Dependencies, loaded.Tasks[i].Dependencies)
-		assert.Equal(t, original.Tasks[i].Outputs, loaded.Tasks[i].Outputs)
+		// Use ElementsMatch to handle nil vs empty slice differences after JSON round-trip
+		assert.ElementsMatch(t, original.Tasks[i].Dependencies, loaded.Tasks[i].Dependencies)
+		assert.ElementsMatch(t, original.Tasks[i].Outputs, loaded.Tasks[i].Outputs)
 		assert.Equal(t, original.Tasks[i].Timeout, loaded.Tasks[i].Timeout)
 	}
 

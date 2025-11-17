@@ -1,3 +1,4 @@
+// Package workflow provides deterministic workflow execution with checkpointing.
 package workflow
 
 import (
@@ -295,7 +296,7 @@ func (e *engine) SaveCheckpoint(ctx context.Context, execution *models.WorkflowE
 
 	// Ensure checkpoint directory exists
 	checkpointDir := filepath.Join(e.checkpointDir, execution.ID)
-	if err := os.MkdirAll(checkpointDir, 0755); err != nil {
+	if err := os.MkdirAll(checkpointDir, 0750); err != nil {
 		return fmt.Errorf("failed to create checkpoint directory: %w", err)
 	}
 
@@ -306,7 +307,7 @@ func (e *engine) SaveCheckpoint(ctx context.Context, execution *models.WorkflowE
 		return fmt.Errorf("failed to marshal checkpoint: %w", err)
 	}
 
-	if err := os.WriteFile(checkpointPath, data, 0644); err != nil {
+	if err := os.WriteFile(checkpointPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write checkpoint: %w", err)
 	}
 
@@ -348,6 +349,7 @@ func (e *engine) LoadCheckpoint(ctx context.Context, executionID string) (*model
 		}
 
 		checkpointPath := filepath.Join(checkpointDir, file.Name())
+		//nolint:gosec // G304: Reading checkpoint file - required for workflow recovery
 		data, err := os.ReadFile(checkpointPath)
 		if err != nil {
 			continue

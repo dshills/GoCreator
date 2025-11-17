@@ -47,6 +47,7 @@ type yamlTask struct {
 // LoadFromFile loads a workflow definition from a YAML file
 func (l *WorkflowLoader) LoadFromFile(path string) (*models.WorkflowDefinition, error) {
 	// Read file
+	//nolint:gosec // G304: Reading workflow file - required for workflow loading
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read workflow file: %w", err)

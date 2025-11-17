@@ -77,7 +77,7 @@ func (r *reportGenerator) Save(report *models.ValidationReport, outputPath strin
 
 	// Ensure directory exists
 	dir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
@@ -88,7 +88,7 @@ func (r *reportGenerator) Save(report *models.ValidationReport, outputPath strin
 	}
 
 	// Write to file
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+	if err := os.WriteFile(outputPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write report to %s: %w", outputPath, err)
 	}
 
@@ -97,6 +97,7 @@ func (r *reportGenerator) Save(report *models.ValidationReport, outputPath strin
 
 // Load reads a validation report from a JSON file
 func (r *reportGenerator) Load(reportPath string) (*models.ValidationReport, error) {
+	//nolint:gosec // G304: Reading validation report file - required for report loading
 	data, err := os.ReadFile(reportPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report from %s: %w", reportPath, err)

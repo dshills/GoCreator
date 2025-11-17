@@ -1,3 +1,4 @@
+// Package generate provides code generation functionality for GoCreator.
 package generate
 
 import (

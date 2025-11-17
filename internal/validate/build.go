@@ -1,3 +1,4 @@
+// Package validate provides validation services for generated code.
 package validate
 
 import (

@@ -1,3 +1,4 @@
+// Package spec provides specification parsing and validation for GoCreator.
 package spec
 
 import (

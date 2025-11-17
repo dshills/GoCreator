@@ -62,7 +62,7 @@ func init() {
 	fullCmd.Flags().StringVarP(&fullReport, "report", "r", "", "output validation report to file")
 }
 
-func runFull(cmd *cobra.Command, args []string) error {
+func runFull(_ *cobra.Command, args []string) error {
 	specFile := args[0]
 
 	log.Info().
@@ -152,6 +152,7 @@ func runFullClarification(specFile, batchFile string) (*models.FinalClarifiedSpe
 	}
 
 	// Read spec file
+	//nolint:gosec // G304: Reading user-provided spec file - required for CLI functionality
 	content, err := os.ReadFile(specFile)
 	if err != nil {
 		return nil, ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to read spec file: %w", err)}
@@ -287,7 +288,7 @@ func runFullValidation(projectRoot, reportPath string) (bool, error) {
 			return allPassed, fmt.Errorf("failed to marshal report: %w", err)
 		}
 
-		if err := os.WriteFile(reportPath, data, 0644); err != nil {
+		if err := os.WriteFile(reportPath, data, 0600); err != nil {
 			log.Error().Err(err).Msg("Failed to write report")
 			return allPassed, fmt.Errorf("failed to write report: %w", err)
 		}

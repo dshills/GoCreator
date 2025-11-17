@@ -316,6 +316,7 @@ func (t *ShellTask) Execute(ctx context.Context, inputs map[string]interface{}) 
 
 	// Execute command
 	startTime := time.Now()
+	//nolint:gosec // G204: Subprocess execution required for workflow task execution
 	command := exec.CommandContext(cmdCtx, cmd, args...)
 	output, err := command.CombinedOutput()
 	duration := time.Since(startTime)

@@ -1,3 +1,4 @@
+// Package main demonstrates the specification parsing capabilities of GoCreator.
 package main
 
 import (
@@ -9,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== GoCreator Specification Parser Demo ===\n")
+	fmt.Println("=== GoCreator Specification Parser Demo ===")
 
 	// Example 1: Parse YAML specification
 	demonstrateYAMLParsing()
@@ -151,7 +152,7 @@ build_command: make && rm -rf /
 		fmt.Printf("✓ Security validation correctly detected issues:\n")
 		fmt.Printf("  Error: %v\n\n", err)
 	} else {
-		fmt.Println("✗ Security validation should have caught issues!\n")
+		fmt.Println("✗ Security validation should have caught issues!")
 	}
 }
 

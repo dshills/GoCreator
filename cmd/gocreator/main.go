@@ -45,7 +45,7 @@ It follows a three-phase workflow:
 	Version:       version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		// Skip for version command
 		if cmd.Name() == "version" {
 			return nil

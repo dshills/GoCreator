@@ -1,3 +1,4 @@
+// Package clarify provides interactive clarification of ambiguous specifications.
 package clarify
 
 import (
