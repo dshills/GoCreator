@@ -4,6 +4,33 @@
 
 GoCreator is a command-line tool that transforms project specifications into complete, functioning Go codebases. It analyzes specifications, resolves ambiguities through interactive clarification, and generates deterministic, tested, validated code.
 
+> **⚠️ Development Status**: GoCreator is currently in active development (v0.1.0-dev). The core functionality is implemented and tested, but the project is not yet production-ready. See [Project Status](#project-status) for details.
+
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+  - [Installation](#installation)
+  - [Quick Start Guide](#quick-start-guide)
+  - [Basic Usage](#basic-usage)
+- [CLI Reference](#cli-reference)
+  - [Commands](#commands)
+  - [Global Options](#global-options)
+- [Specification Format](#specification-format)
+  - [Specification Best Practices](#specification-best-practices)
+  - [Supported Formats](#supported-formats)
+- [Configuration](#configuration)
+- [Example Specifications](#example-specifications)
+- [Workflow Examples](#workflow-examples)
+- [Exit Codes](#exit-codes)
+- [Troubleshooting](#troubleshooting)
+- [Development & Contributing](#development--contributing)
+- [Architecture](#architecture)
+- [Project Status](#project-status)
+- [Contributing](#contributing)
+- [Support & Feedback](#support--feedback)
+- [License](#license)
+
 ## Features
 
 - **Specification Analysis**: Parse specifications in YAML, JSON, or Markdown format
@@ -17,6 +44,8 @@ GoCreator is a command-line tool that transforms project specifications into com
 
 ### Installation
 
+**Prerequisites**: Go 1.21+ (requires generics support)
+
 ```bash
 # Clone the repository
 git clone https://github.com/dshills/gocreator.git
@@ -25,8 +54,34 @@ cd gocreator
 # Build from source
 go build -o bin/gocreator ./cmd/gocreator
 
-# Install to GOPATH
+# Or use the Makefile
+make build
+
+# Optionally, install to GOPATH
 go install ./cmd/gocreator
+```
+
+**Verify installation**:
+```bash
+./bin/gocreator version
+```
+
+### Quick Start Guide
+
+Try GoCreator with the included example specification:
+
+```bash
+# 1. Ensure your API key is set
+export ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# 2. Generate a simple TODO CLI application
+./bin/gocreator full ./examples/simple-spec.yaml --output ./todo-app
+
+# 3. Check the generated code
+ls -la ./todo-app
+
+# 4. Review the validation results
+# (The 'full' command automatically validates the generated code)
 ```
 
 ### Basic Usage
@@ -125,7 +180,10 @@ gocreator generate ./my-spec.yaml --batch ./answers.json
 Validate an existing project.
 
 **Options:**
-- `--timeout DURATION` - Timeout for validation operations (default: 5m)
+- `-r, --report FILE` - Output validation report to JSON file
+- `--skip-build` - Skip build validation
+- `--skip-lint` - Skip lint validation
+- `--skip-tests` - Skip test validation
 
 **Description:**
 
@@ -135,19 +193,28 @@ The validation phase:
 3. **Test Validation**: Runs `go test ./...` and captures test results and coverage
 4. **Report Generation**: Aggregates results with per-file error mappings
 
+All checks run by default. Use `--skip-*` flags to disable specific checks.
+
 Validation failures do not trigger automatic repairs. Use validation output to guide specification updates and regeneration.
+
+**Exit codes:**
+- `0` - All validations passed
+- `5` - One or more validations failed
 
 **Examples:**
 
 ```bash
-# Validate the default generated project
+# Validate all checks
 gocreator validate ./generated
 
 # Validate a specific project directory
 gocreator validate ./my-project
 
-# Validate with custom timeout
-gocreator validate ./my-project --timeout 10m
+# Skip linting
+gocreator validate ./my-project --skip-lint
+
+# Save validation report to file
+gocreator validate ./my-project --report ./validation.json
 ```
 
 #### `full <spec-file>`
@@ -184,23 +251,33 @@ Output the Final Clarified Specification.
 
 **Options:**
 - `--batch FILE` - Use pre-answered questions from JSON file
-- `--format FORMAT` - Output format: json, yaml (default: json)
+- `-o, --output FILE` - Output file path (default: stdout)
+- `--pretty` - Pretty-print JSON (default: true)
 
 **Description:**
 
-Produces a Final Clarified Specification (FCS) in machine-readable format. The FCS is the complete, deterministic specification used as the blueprint for code generation.
+Produces a Final Clarified Specification (FCS) in JSON format. The FCS is the complete, deterministic specification used as the blueprint for code generation.
+
+The FCS contains:
+- Fully resolved requirements
+- Clarification decisions
+- Architectural constraints
+- Implementation details
 
 **Examples:**
 
 ```bash
-# Output FCS as JSON (default)
+# Output FCS to stdout (pretty-printed JSON)
 gocreator dump-fcs ./my-spec.yaml
 
-# Output FCS as YAML
-gocreator dump-fcs ./my-spec.yaml --format yaml
+# Save to file
+gocreator dump-fcs ./my-spec.yaml --output ./fcs.json
 
-# Output FCS with batch answers
-gocreator dump-fcs ./my-spec.yaml --batch ./answers.json > fcs.json
+# Compact JSON (no pretty-printing)
+gocreator dump-fcs ./my-spec.yaml --pretty=false
+
+# Batch mode with output file
+gocreator dump-fcs ./my-spec.yaml --batch ./answers.json --output ./fcs.json
 ```
 
 #### `version`
@@ -209,13 +286,48 @@ Print version information.
 
 ### Global Options
 
-- `-c, --config FILE` - Configuration file path (default: .gocreator.yaml)
-- `--log-level LEVEL` - Log level: debug, info, warn, error (default: info)
-- `--log-format FORMAT` - Log format: console, json (default: console)
+All commands support these global flags:
+
+- `-c, --config FILE` - Configuration file path (default: `.gocreator.yaml`)
+- `--log-level LEVEL` - Log level: `debug`, `info`, `warn`, `error` (default: `info`)
+- `--log-format FORMAT` - Log format: `console`, `json` (default: `console`)
+- `-h, --help` - Help for any command
+- `-v, --version` - Display version information
+
+**Examples:**
+
+```bash
+# Run with debug logging
+gocreator generate ./spec.yaml --log-level=debug
+
+# Use custom config file
+gocreator full ./spec.yaml --config ./custom-config.yaml
+
+# JSON logging for CI/CD
+gocreator generate ./spec.yaml --log-format=json
+```
 
 ## Specification Format
 
-GoCreator accepts specifications in multiple formats. Create a spec file describing your desired system:
+GoCreator accepts specifications in multiple formats (YAML, JSON, or Markdown). Create a spec file describing your desired system.
+
+### Specification Best Practices
+
+**Key principles:**
+- ✅ **Focus on WHAT, not HOW** - Describe requirements and user needs, not implementation details
+- ✅ **Technology-agnostic** - Avoid mentioning specific libraries, frameworks, or APIs
+- ✅ **Testable requirements** - Each requirement should be independently verifiable
+- ✅ **User scenarios** - Describe how users interact with the system (Given/When/Then format)
+- ❌ **Avoid implementation details** - Don't specify database schemas, API endpoints, or code structure
+
+**Required sections:**
+1. **User Scenarios** - Prioritized user journeys with acceptance criteria
+2. **Functional Requirements** - What the system must do
+3. **Success Criteria** - Measurable outcomes that define success
+
+See `examples/simple-spec.yaml` for a complete example.
+
+### Supported Formats
 
 ### YAML Format
 
@@ -279,7 +391,24 @@ description: A sample Go project
 
 ## Configuration
 
-Create a `.gocreator.yaml` file in your project root:
+### Environment Variables
+
+GoCreator requires an API key for the LLM provider. Set the environment variable before running:
+
+```bash
+# For Anthropic (Claude)
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# For OpenAI
+export OPENAI_API_KEY=sk-...
+
+# For Google
+export GOOGLE_API_KEY=...
+```
+
+### Configuration File
+
+Create a `.gocreator.yaml` file in your project root (optional - uses defaults if not present):
 
 ```yaml
 llm:
@@ -307,6 +436,24 @@ logging:
   format: console              # console or json
   output: stderr               # Output destination
   execution_log: .gocreator/execution.jsonl  # Execution audit log
+```
+
+## Example Specifications
+
+The repository includes example specifications in the `examples/` directory:
+
+- **`simple-spec.yaml`** - A minimal TODO CLI application (beginner-level, ~10 second generation)
+- **`medium-spec.yaml`** - A more complex REST API with database integration (medium complexity)
+- **`clarifications.json`** - Example batch clarification answers file
+
+Try them out:
+
+```bash
+# Quick test with the simple example
+./bin/gocreator generate ./examples/simple-spec.yaml --output ./test-output
+
+# Full pipeline with validation
+./bin/gocreator full ./examples/simple-spec.yaml --output ./test-output
 ```
 
 ## Workflow Examples
@@ -418,14 +565,20 @@ chmod 755 ./generated
 gocreator generate ./spec.yaml --output ./generated
 ```
 
-### Generation Timeouts
+### Generation Performance
 
-**Problem**: Generation takes longer than 90 seconds
+**Note**: Generation time varies based on specification complexity and LLM provider response times.
 
-**Solution**:
-1. Check specification complexity (verify it's a reasonable scope)
-2. Check LLM provider rate limits and availability
-3. Increase timeout if needed (though 90s is the target for medium projects)
+**Performance targets**:
+- Simple projects (< 5 files): < 30 seconds
+- Medium projects (5-20 files): < 90 seconds
+- Complex projects (> 20 files): Variable (depends on scope)
+
+**If generation is slower than expected**:
+1. Check specification complexity (ensure reasonable scope)
+2. Verify LLM provider rate limits and availability
+3. Check network connectivity to LLM provider
+4. Review execution logs with `--log-level=debug` for bottlenecks
 
 ### Validation Failures
 
@@ -459,26 +612,69 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
 
 **Current Version**: 0.1.0-dev
 
-**Implementation Status**:
-- ✅ Specification parsing (YAML, JSON, Markdown)
-- ✅ Clarification engine (LangGraph-Go)
-- ✅ Code generation (LangGraph-Go + GoFlow)
-- ✅ Validation (build, lint, test)
-- ✅ CLI commands (clarify, generate, validate, full, dump-fcs)
-- ✅ Determinism verification
-- ⏳ Performance optimizations
-- ⏳ Incremental regeneration
+**Branch**: `001-core-implementation` (main development branch)
 
-See [tasks.md](specs/001-core-implementation/tasks.md) for detailed implementation progress.
+**Implementation Status**:
+- ✅ **Completed**:
+  - Specification parsing (YAML, JSON, Markdown)
+  - Clarification engine with LangGraph-Go
+  - Autonomous code generation engine
+  - Comprehensive validation (build, lint, test)
+  - Full CLI suite (clarify, generate, validate, full, dump-fcs)
+  - Determinism verification
+  - Comprehensive test coverage (unit + integration tests)
+  - Complete documentation suite
+  - Security hardening (bounded file operations, permission checks)
+
+- ⏳ **In Progress**:
+  - Phase 6: Incremental regeneration and caching (US4)
+  - Performance optimizations (LLM caching, parallel generation)
+  - Release preparation (goreleaser, automated releases)
+
+**Build Status**: ✅ All tests passing, builds successfully
+**Lint Status**: ✅ Critical issues resolved
+**Test Coverage**: Target 80% (comprehensive unit and integration tests)
+
+See [specs/001-core-implementation/tasks.md](specs/001-core-implementation/tasks.md) for detailed implementation progress and task tracking.
+
+## Contributing
+
+Contributions are welcome! Please see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for:
+- Development environment setup
+- Code style and testing requirements
+- How to run tests and linting
+- Pull request guidelines
+
+Before contributing, familiarize yourself with the project's architecture and design principles documented in:
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture and design
+- [CLAUDE.md](CLAUDE.md) - Project overview and development workflow
+- [specs/001-core-implementation/](specs/001-core-implementation/) - Current implementation specification
+
+## Support & Feedback
+
+For issues, questions, or contributions:
+
+1. **Check documentation first**:
+   - README (this file) for usage and troubleshooting
+   - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for development setup
+   - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design
+   - [Troubleshooting](#troubleshooting) section above
+
+2. **Review existing resources**:
+   - Example specifications in `examples/`
+   - Implementation tasks in `specs/001-core-implementation/tasks.md`
+   - Architecture documentation
+
+3. **Report issues** with:
+   - Full error context
+   - Command used and flags
+   - Specification file (if applicable)
+   - Debug output (`--log-level=debug`)
+   - GoCreator version (`gocreator version`)
+   - Go version (`go version`)
+
+4. **Feature requests**: Check the project roadmap in `specs/001-core-implementation/tasks.md` to see if your feature is already planned.
 
 ## License
 
 GoCreator is open source. See LICENSE file for details.
-
-## Support
-
-For issues, questions, or contributions:
-1. Check existing documentation in `docs/` directory
-2. Review specification and plan in `specs/001-core-implementation/`
-3. Check troubleshooting section above
-4. Report issues with full error context and `--log-level=debug` output
