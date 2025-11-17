@@ -496,7 +496,7 @@ func TestChangeDetector_IdentifyAffectedPackages(t *testing.T) {
 			},
 		},
 		{
-			name: "deleted package affects dependents",
+			name: "deleted package affects itself and dependents",
 			changes: &generate.FCSChanges{
 				HasChanges:      true,
 				DeletedPackages: []string{"lib"},
@@ -509,8 +509,9 @@ func TestChangeDetector_IdentifyAffectedPackages(t *testing.T) {
 			},
 			wantErr: false,
 			validatePackages: func(t *testing.T, packages []string) {
-				assert.Len(t, packages, 1)
-				assert.Contains(t, packages, "main")
+				assert.Len(t, packages, 2)
+				assert.Contains(t, packages, "lib")  // Deleted package itself
+				assert.Contains(t, packages, "main") // Dependent
 			},
 		},
 		{

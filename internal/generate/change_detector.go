@@ -170,8 +170,9 @@ func (cd *ChangeDetector) IdentifyAffectedPackages(changes *FCSChanges, architec
 		cd.addDependents(pkg.Name, architecture, affected)
 	}
 
-	// Deleted packages affect their dependents
+	// Deleted packages affect themselves and their dependents
 	for _, pkgName := range changes.DeletedPackages {
+		affected[pkgName] = true // Mark the deleted package itself
 		cd.addDependents(pkgName, architecture, affected)
 	}
 
