@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "title": "GoCreator Batch Mode Clarifications Example",
+    "description": "Example of pre-answered clarification questions for batch mode processing",
+    "spec_id": "examples/medium-spec.yaml",
+    "version": "1.0",
+    "created_at": "2025-11-17",
+    "notes": "This demonstrates the batch mode format for providing answers to clarification questions without interactive prompts. Useful for CI/CD pipelines and automated generation."
+  },
+  "clarification_responses": [
+    {
+      "question_id": "CQ-001",
+      "question": "Email Verification Mechanism: Should user email verification be asynchronous (send email with link) or synchronous (webhook callback)? Async is more common but requires email service. Webhook allows real-time verification.",
+      "question_type": "multiple_choice",
+      "options": [
+        {
+          "id": "opt_async",
+          "label": "Asynchronous email verification",
+          "description": "Send verification email with time-limited link; user clicks link to verify"
+        },
+        {
+          "id": "opt_webhook",
+          "label": "Webhook-based verification",
+          "description": "External service calls webhook when email is verified; real-time but requires external integration"
+        }
+      ],
+      "selected_option": "opt_async",
+      "custom_answer": null,
+      "rationale": "Email-based verification is industry standard and doesn't require external webhook setup. Users expect email confirmation."
+    },
+    {
+      "question_id": "CQ-002",
+      "question": "Token Storage: Where should refresh tokens be stored for maximum security? Database is persistent but slower; Redis is fast but requires additional infrastructure.",
+      "question_type": "multiple_choice",
+      "options": [
+        {
+          "id": "opt_database",
+          "label": "Store in PostgreSQL database",
+          "description": "Persistent, survives restarts, can be queried for analytics"
+        },
+        {
+          "id": "opt_redis",
+          "label": "Store in Redis cache",
+          "description": "Fast access, automatic expiration support, but requires Redis deployment"
+        },
+        {
+          "id": "opt_hybrid",
+          "label": "Hybrid: Redis primary, database backup",
+          "description": "Best performance with persistence fallback"
+        }
+      ],
+      "selected_option": "opt_hybrid",
+      "custom_answer": null,
+      "rationale": "Hybrid approach provides both speed (Redis) and durability (PostgreSQL). Active sessions in Redis for speed; historical sessions in database for audit."
+    },
+    {
+      "question_id": "CQ-003",
+      "question": "Rate Limiting Scope: Rate limits can be enforced per IP address (protects from distributed attacks) or per email (protects specific accounts). Which is more important for your use case?",
+      "question_type": "multiple_choice",
+      "options": [
+        {
+          "id": "opt_per_ip",
+          "label": "Per IP address",
+          "description": "Limit by client IP; prevents brute force from single attacker"
+        },
+        {
+          "id": "opt_per_email",
+          "label": "Per email address",
+          "description": "Limit by target account; protects accounts from distributed attacks"
+        },
+        {
+          "id": "opt_both",
+          "label": "Both per-IP and per-email",
+          "description": "Most strict; protects against both focused and distributed attacks"
+        }
+      ],
+      "selected_option": "opt_both",
+      "custom_answer": null,
+      "rationale": "Defense in depth approach: 5 attempts per IP per hour AND 10 attempts per email per hour. Prevents both focused account attacks and distributed scanning."
+    },
+    {
+      "question_id": "CQ-004",
+      "question": "Concurrent Sessions: Should users be able to have multiple active login sessions simultaneously (e.g., phone + desktop), or should new login invalidate previous sessions?",
+      "question_type": "multiple_choice",
+      "options": [
+        {
+          "id": "opt_multiple",
+          "label": "Allow multiple concurrent sessions",
+          "description": "Users can be logged in on phone and desktop simultaneously"
+        },
+        {
+          "id": "opt_single",
+          "label": "Single session only",
+          "description": "New login invalidates previous session; only one device at a time"
+        },
+        {
+          "id": "opt_limited",
+          "label": "Limited concurrent sessions (e.g., 3 max)",
+          "description": "Allow multiple sessions but enforce a reasonable limit"
+        }
+      ],
+      "selected_option": "opt_limited",
+      "custom_answer": "Allow maximum 5 concurrent sessions per user to support multiple devices while preventing session sprawl",
+      "rationale": "Multiple sessions are user-friendly but unlimited sessions create security risk. 5 sessions accommodates typical use (phone, tablet, desktop, backup) while preventing abuse."
+    },
+    {
+      "question_id": "CQ-005",
+      "question": "Account Deletion: When a user deletes their account, should it be immediately deleted (hard delete) or marked for deletion with a grace period (soft delete)?",
+      "question_type": "multiple_choice",
+      "options": [
+        {
+          "id": "opt_hard",
+          "label": "Immediate hard deletion",
+          "description": "Account and all data deleted immediately; no recovery possible"
+        },
+        {
+          "id": "opt_soft_7day",
+          "label": "Soft delete with 7-day grace period",
+          "description": "Account marked deleted; user can recover within 7 days; after 7 days hard deleted"
+        },
+        {
+          "id": "opt_soft_30day",
+          "label": "Soft delete with 30-day grace period",
+          "description": "Extended recovery window for GDPR compliance; 30 days before permanent deletion"
+        }
+      ],
+      "selected_option": "opt_soft_30day",
+      "custom_answer": null,
+      "rationale": "30-day grace period aligns with GDPR requirements and allows users to recover accidentally deleted accounts. Provides legal compliance while maintaining data safety."
+    }
+  ],
+  "generation_context": {
+    "pipeline": "full",
+    "validation_enabled": true,
+    "test_generation": true,
+    "documentation_generation": true,
+    "notes": "These clarifications provide complete context to proceed directly to FCS generation without interactive prompts. Suitable for CI/CD pipelines where interactive mode is not available."
+  },
+  "format_notes": {
+    "description": "Batch mode clarifications JSON format",
+    "field_descriptions": {
+      "meta": "Metadata about this clarification response set",
+      "clarification_responses": "Array of answered clarification questions",
+      "question_id": "ID matching the question from the system",
+      "question_type": "Type of question: multiple_choice, open_ended, confirm, etc.",
+      "selected_option": "ID of selected option (for multiple choice)",
+      "custom_answer": "User's custom answer text (for open-ended questions or custom selections)",
+      "rationale": "Explanation of why this answer was chosen (for documentation)"
+    }
+  },
+  "example_cli_usage": {
+    "interactive_mode": "gocreator clarify examples/medium-spec.yaml",
+    "batch_mode": "gocreator clarify examples/medium-spec.yaml --answers examples/clarifications.json",
+    "full_pipeline_batch": "gocreator full examples/medium-spec.yaml --answers examples/clarifications.json --output ./generated_api"
+  }
+}

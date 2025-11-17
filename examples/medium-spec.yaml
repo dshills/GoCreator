@@ -1,0 +1,559 @@
+# GoCreator Medium Specification Example: REST API with Authentication
+#
+# This is a realistic medium-complexity specification demonstrating:
+# - Multiple user scenarios with different complexity levels
+# - Comprehensive functional requirements (10+ FRs)
+# - Complex data model with relationships
+# - API contracts and integration points
+# - Non-functional requirements (performance, security, scalability)
+#
+# Spec Purpose: Demonstrate complex specification patterns
+# Estimated Generation Time: 30-60 seconds
+# Complexity: Intermediate (multiple packages, external dependencies, auth)
+
+name: User Management REST API
+description: |
+  A REST API service for managing application users with authentication,
+  authorization, user profiles, and activity tracking.
+  The API supports user registration, login, profile management, and admin operations.
+  All user data is stored in a relational database with comprehensive audit logging.
+
+# ============================================================================
+# User Scenarios & Testing (Priority: P1-P3)
+# ============================================================================
+scenarios:
+  - id: US1-Register-User
+    priority: P1
+    title: New user creates an account via registration endpoint
+    description: |
+      A new user wants to create an account by providing email and password.
+      The system validates input, creates the user, and returns authentication tokens.
+    given: User has valid email and password
+    when: User POST /api/v1/auth/register with email and password
+    then: |
+      - User account is created with encrypted password
+      - Response includes JWT access token and refresh token
+      - User receives a verification email (async)
+      - User can immediately use the API
+    acceptance_criteria:
+      - Password is hashed with bcrypt (never stored plaintext)
+      - Email uniqueness is enforced at database level
+      - Response includes 201 Created status code
+      - Response body contains access_token, refresh_token, expires_in
+
+  - id: US2-User-Login
+    priority: P1
+    title: Existing user logs in with email and password
+    description: |
+      A registered user logs in to obtain fresh authentication tokens.
+      The system validates credentials and returns JWT tokens.
+    given: User is registered with email and password
+    when: User POST /api/v1/auth/login with email and password
+    then: |
+      - Credentials are validated against stored hash
+      - Session is created in Redis cache
+      - JWT tokens are generated and returned
+      - Failed attempt is logged for audit trail
+    acceptance_criteria:
+      - Maximum 5 login attempts per hour per email
+      - Failed login after 5 attempts locks account for 15 minutes
+      - Successful login clears failed attempt counter
+      - Response time < 200ms for successful login
+
+  - id: US3-View-User-Profile
+    priority: P1
+    title: Authenticated user views their own profile
+    description: |
+      A logged-in user can view their profile information.
+      The API validates their authentication token and returns their profile.
+    given: User has valid access token in Authorization header
+    when: User GET /api/v1/users/profile
+    then: |
+      - User profile data is returned
+      - Sensitive fields (password hash) are NOT included
+      - Response includes profile metadata (created_at, updated_at)
+    acceptance_criteria:
+      - Request without token returns 401 Unauthorized
+      - Request with invalid token returns 401 Unauthorized
+      - Response time < 100ms
+
+  - id: US4-Update-User-Profile
+    priority: P2
+    title: User updates their profile information
+    description: |
+      A logged-in user can update their profile (name, avatar, bio).
+      The system validates changes and persists them.
+    given: User has valid access token and wants to update profile
+    when: User PATCH /api/v1/users/profile with updated fields
+    then: |
+      - Only allowed fields are updated (name, avatar, bio)
+      - Email and password cannot be changed via this endpoint
+      - Updated timestamp is set to current time
+      - Response includes updated profile
+    acceptance_criteria:
+      - Email update requires verification step (separate endpoint)
+      - Password update requires verification of current password
+      - Invalid input returns 400 Bad Request with field-specific errors
+      - Optimistic locking prevents concurrent update conflicts
+
+  - id: US5-Change-Password
+    priority: P2
+    title: User changes their password
+    description: |
+      A logged-in user wants to change their password.
+      The system requires verification of the old password and confirmation of new password.
+    given: User is authenticated and wants to change password
+    when: User POST /api/v1/users/change-password with old and new password
+    then: |
+      - Old password is verified against hash
+      - New password is validated (strength requirements)
+      - Password is hashed and stored
+      - All existing sessions are invalidated
+    acceptance_criteria:
+      - Password must be minimum 12 characters
+      - Password must contain uppercase, lowercase, digits, symbols
+      - Password history prevents reuse of last 5 passwords
+      - All active sessions are revoked immediately
+
+  - id: US6-Admin-List-Users
+    priority: P2
+    title: Admin views paginated list of all users
+    description: |
+      An admin user can retrieve a paginated list of all users with filtering and sorting.
+      The system enforces admin authorization.
+    given: User has admin role and valid access token
+    when: User GET /api/v1/admin/users?limit=50&offset=0&role=user&sort=created_at
+    then: |
+      - Paginated list of users is returned
+      - Each user includes id, email, name, role, created_at, last_login
+      - Sensitive fields (password_hash) are excluded
+      - Total count is included for pagination
+    acceptance_criteria:
+      - Request without admin role returns 403 Forbidden
+      - Pagination parameters are validated (limit max 100)
+      - Sorting by valid fields only (created_at, email, last_login)
+      - Filtering by role works (admin, user, moderator)
+      - Response time < 500ms for 1000+ users
+
+  - id: US7-Admin-Disable-User
+    priority: P2
+    title: Admin disables a user account
+    description: |
+      An admin can disable a user account, preventing login.
+      The disabled user is logged out immediately.
+    given: User has admin role
+    when: Admin DELETE /api/v1/admin/users/{userId}
+    then: |
+      - User status is set to disabled
+      - All active sessions for that user are revoked
+      - User cannot log in
+      - Audit log entry is created
+    acceptance_criteria:
+      - Request without admin role returns 403 Forbidden
+      - Disabling non-existent user returns 404 Not Found
+      - User is notified via email
+      - Disabled users can be re-enabled by admin
+
+  - id: US8-Request-Password-Reset
+    priority: P3
+    title: User requests password reset via email
+    description: |
+      A user who forgot their password can request a reset.
+      The system sends a time-limited reset link via email.
+    given: User account exists
+    when: User POST /api/v1/auth/forgot-password with email
+    then: |
+      - Reset token is generated (random, 32 bytes)
+      - Reset token is stored with 1-hour expiration
+      - Email with reset link is sent asynchronously
+      - Same response is returned whether email exists or not (security)
+    acceptance_criteria:
+      - Reset link includes token: /reset-password?token=xyz
+      - Token is single-use only
+      - Expired tokens return 400 Bad Request
+      - Reset completes password change without old password
+
+# ============================================================================
+# Functional Requirements (10+ comprehensive requirements)
+# ============================================================================
+requirements:
+  - id: FR-001
+    description: System MUST accept user registration with email and password
+    category: Authentication
+    priority: P1
+    notes: Email must be validated format, password minimum 12 characters
+
+  - id: FR-002
+    description: System MUST hash passwords using bcrypt with cost factor 12 minimum
+    category: Security
+    priority: P1
+    notes: Passwords are never stored in plaintext; all storage is hashed
+
+  - id: FR-003
+    description: System MUST generate JWT access tokens valid for 1 hour
+    category: Authentication
+    priority: P1
+    notes: Tokens include user ID, email, role claims
+
+  - id: FR-004
+    description: System MUST validate JWT tokens on all protected endpoints
+    category: Authorization
+    priority: P1
+    notes: Invalid/expired tokens return 401; requests proceed only with valid tokens
+
+  - id: FR-005
+    description: System MUST enforce role-based access control (RBAC) on admin endpoints
+    category: Authorization
+    priority: P1
+    notes: Supported roles: admin, moderator, user; defaults to user
+
+  - id: FR-006
+    description: System MUST implement rate limiting on authentication endpoints
+    category: Security
+    priority: P2
+    notes: Maximum 5 login attempts per email per hour; lockout for 15 minutes
+
+  - id: FR-007
+    description: System MUST create audit log entries for all user-affecting actions
+    category: Audit
+    priority: P2
+    notes: Logs include action type, user ID, timestamp, IP address, user agent
+
+  - id: FR-008
+    description: System MUST support user profile updates (name, avatar, bio)
+    category: User Management
+    priority: P2
+    notes: Updates must validate input; prevent email/password changes via this endpoint
+
+  - id: FR-009
+    description: System MUST enforce password change requirements with strength validation
+    category: Security
+    priority: P2
+    notes: Minimum 12 chars, uppercase+lowercase+digits+symbols; no password reuse
+
+  - id: FR-010
+    description: System MUST store user data in relational database with strong schema
+    category: Data Persistence
+    priority: P1
+    notes: PostgreSQL recommended; schema includes indexes on email, role fields
+
+  - id: FR-011
+    description: System MUST implement refresh token rotation on token refresh
+    category: Authentication
+    priority: P2
+    notes: Old refresh token is invalidated when new one is issued
+
+  - id: FR-012
+    description: System MUST support pagination for list endpoints with configurable limits
+    category: API Design
+    priority: P2
+    notes: Default limit 50, maximum 100; supports offset-based and cursor pagination
+
+  - id: FR-013
+    description: System MUST validate all API input against defined schemas
+    category: API Design
+    priority: P1
+    notes: Returns 400 Bad Request with field-specific error messages for invalid input
+
+  - id: FR-014
+    description: System MUST provide comprehensive error responses with error codes
+    category: API Design
+    priority: P2
+    notes: All errors include error_code, message, and field-level details where applicable
+
+  - id: FR-015
+    description: System MUST support filtering users by role, status, and creation date
+    category: Admin Features
+    priority: P2
+    notes: Filtering is optional; system returns all users if no filters provided
+
+# ============================================================================
+# Key Entities (Data Model)
+# ============================================================================
+entities:
+  - name: User
+    description: System user account with profile and authentication data
+    attributes:
+      - attribute: id
+        type: UUID
+        description: Unique identifier (primary key)
+
+      - attribute: email
+        type: email string
+        description: User email (unique, required for login)
+
+      - attribute: password_hash
+        type: bcrypt hash
+        description: Hashed password using bcrypt cost 12
+
+      - attribute: first_name
+        type: string
+        description: User's first name (optional)
+
+      - attribute: last_name
+        type: string
+        description: User's last name (optional)
+
+      - attribute: avatar_url
+        type: URL string
+        description: Profile picture URL (optional)
+
+      - attribute: bio
+        type: text
+        description: User biography (optional, max 500 chars)
+
+      - attribute: role
+        type: enum (admin|moderator|user)
+        description: User's role determining permissions
+
+      - attribute: status
+        type: enum (active|disabled|suspended)
+        description: Account status
+
+      - attribute: email_verified
+        type: boolean
+        description: Whether email has been verified
+
+      - attribute: created_at
+        type: timestamp
+        description: Account creation time (UTC)
+
+      - attribute: updated_at
+        type: timestamp
+        description: Last profile update time (UTC)
+
+      - attribute: last_login_at
+        type: timestamp
+        description: Last successful login time (nullable)
+
+      - attribute: failed_login_attempts
+        type: integer
+        description: Count of failed login attempts (resets after successful login)
+
+      - attribute: locked_until
+        type: timestamp
+        description: Account lock expiration time (nullable)
+
+  - name: Session
+    description: Active user session tracking for logout and token management
+    attributes:
+      - attribute: id
+        type: UUID
+        description: Session identifier
+
+      - attribute: user_id
+        type: UUID
+        description: Foreign key to User
+
+      - attribute: refresh_token
+        type: string
+        description: Long-lived token for refreshing access tokens
+
+      - attribute: created_at
+        type: timestamp
+        description: Session creation time
+
+      - attribute: expires_at
+        type: timestamp
+        description: Session expiration time (7 days default)
+
+      - attribute: ip_address
+        type: IP string
+        description: Client IP address for audit
+
+      - attribute: user_agent
+        type: string
+        description: Client user agent for audit
+
+  - name: AuditLog
+    description: Immutable record of all user-affecting actions
+    attributes:
+      - attribute: id
+        type: UUID
+        description: Log entry identifier
+
+      - attribute: user_id
+        type: UUID
+        description: User affected by this action
+
+      - attribute: actor_id
+        type: UUID
+        description: User who performed the action
+
+      - attribute: action
+        type: enum (login|register|update_profile|change_password|...)
+        description: Type of action performed
+
+      - attribute: resource_type
+        type: string
+        description: Type of resource affected (user, session, etc.)
+
+      - attribute: resource_id
+        type: UUID
+        description: ID of affected resource
+
+      - attribute: details
+        type: JSON
+        description: Action-specific details
+
+      - attribute: created_at
+        type: timestamp
+        description: When the action occurred
+
+# ============================================================================
+# Non-Functional Requirements
+# ============================================================================
+nonfunctional_requirements:
+  - category: Performance
+    description: API response time for single-user operations (GET, POST) must be < 200ms p99
+    measurable: "p99 latency < 200ms for 95% of requests"
+
+  - category: Scalability
+    description: System must support up to 10,000 concurrent users
+    measurable: "Handle 10,000 concurrent connections without errors"
+
+  - category: Security
+    description: All passwords must be hashed with bcrypt; never stored plaintext
+    measurable: "100% of passwords stored as bcrypt hashes"
+
+  - category: Availability
+    description: System must achieve 99.9% uptime
+    measurable: "Maximum 43 minutes downtime per month"
+
+  - category: Data Integrity
+    description: All user data must be ACID-compliant and consistently replicated
+    measurable: "Zero data loss events; successful transaction rollback on errors"
+
+  - category: Auditability
+    description: All user-affecting actions must be logged with full context
+    measurable: "100% of user actions logged with user, time, action type"
+
+  - category: API Compatibility
+    description: API must be backwards-compatible across minor versions
+    measurable: "Deprecation period of 6 months for breaking changes"
+
+# ============================================================================
+# API Contracts (Integration Boundaries)
+# ============================================================================
+api_contracts:
+  - endpoint: "POST /api/v1/auth/register"
+    description: User registration
+    request_body:
+      email:
+        type: string
+        format: email
+        required: true
+      password:
+        type: string
+        minLength: 12
+        required: true
+    response_200:
+      access_token: string
+      refresh_token: string
+      expires_in: integer (seconds)
+      user:
+        id: UUID
+        email: string
+        role: string
+    response_400: "Invalid input (missing fields, weak password, etc)"
+    response_409: "Email already registered"
+
+  - endpoint: "POST /api/v1/auth/login"
+    description: User login
+    request_body:
+      email:
+        type: string
+        format: email
+        required: true
+      password:
+        type: string
+        required: true
+    response_200: "Same as register response"
+    response_401: "Invalid email or password"
+    response_429: "Too many login attempts; account locked 15 minutes"
+
+  - endpoint: "GET /api/v1/users/profile"
+    description: Get current user profile
+    headers:
+      Authorization: "Bearer {access_token}"
+    response_200:
+      id: UUID
+      email: string
+      first_name: string
+      last_name: string
+      avatar_url: string
+      bio: string
+      role: string
+      created_at: timestamp
+    response_401: "Missing or invalid token"
+
+  - endpoint: "PATCH /api/v1/users/profile"
+    description: Update current user profile
+    headers:
+      Authorization: "Bearer {access_token}"
+    request_body:
+      first_name:
+        type: string
+        maxLength: 100
+      last_name:
+        type: string
+        maxLength: 100
+      avatar_url:
+        type: string
+        format: url
+      bio:
+        type: string
+        maxLength: 500
+    response_200: "Updated user profile"
+    response_400: "Invalid input"
+
+# ============================================================================
+# Metadata and Configuration
+# ============================================================================
+metadata:
+  version: "2.0"
+  created_at: "2025-11-17"
+  author: "GoCreator Examples"
+  tags:
+    - intermediate
+    - api
+    - authentication
+    - database
+    - security
+
+build_config:
+  go_version: "1.21+"
+  target_os: any
+  test_coverage_target: 85.0
+  database_required: true
+  database_type: postgresql
+  cache_required: true
+  cache_type: redis
+
+# ============================================================================
+# Areas Requiring Clarification (Examples of Questions)
+# ============================================================================
+clarification_notes: |
+  The following areas might need clarification during the clarification phase:
+
+  1. Email verification: Is async/email-based, or should it be webhook-based?
+  2. Token storage: Should refresh tokens be stored in database or Redis?
+  3. Rate limiting: Should be per-IP or per-email? Current spec assumes per-email.
+  4. Concurrent login: Should users be allowed multiple active sessions?
+  5. Password reset: Email or SMS delivery? Current spec assumes email only.
+  6. Admin operations: Should admins log all their own actions (circular)?
+  7. Account deletion: Should deletion be hard (immediate) or soft (grace period)?
+
+# ============================================================================
+# END OF SPECIFICATION
+#
+# This specification is comprehensive and demonstrates:
+# ✓ Multiple user scenarios (P1-P3 priority levels)
+# ✓ 15 functional requirements covering auth, security, data, API design
+# ✓ Complex entity model with relationships
+# ✓ API contract definitions
+# ✓ Non-functional requirements (perf, security, scalability)
+# ✓ Audit and compliance requirements
+#
+# Estimated generation time: 30-60 seconds for a complete API service
+# ============================================================================

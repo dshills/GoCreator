@@ -1,0 +1,188 @@
+# GoCreator Simple Specification Example: TODO CLI Tool
+#
+# This is a minimal working specification that demonstrates all required sections.
+# It describes a simple command-line TODO application.
+#
+# Spec Purpose: Demonstrate the specification format and required fields
+# Estimated Generation Time: < 10 seconds
+# Complexity: Beginner (single package, minimal dependencies)
+
+name: TODO CLI
+description: |
+  A simple command-line application for managing personal TODO lists.
+  Users can add, list, and mark tasks as complete from the terminal.
+  All data is persisted to a local file.
+
+# ============================================================================
+# REQUIRED SECTION: User Scenarios & Testing
+#
+# These describe how real users interact with the system.
+# Each scenario should be independently testable and include acceptance criteria.
+# ============================================================================
+scenarios:
+  - id: US1-Add-Task
+    priority: P1
+    title: User adds a new task to their TODO list
+    description: |
+      A user wants to add a new task to their personal TODO list.
+      They run the application with the "add" command and provide a task description.
+    given: User is at the command line with the TODO application available
+    when: User executes `todo add "Buy groceries"`
+    then: |
+      - The application confirms the task was added
+      - The task appears in the todo list with a unique ID
+      - The task is marked as incomplete
+    acceptance_criteria:
+      - Task is persisted to storage immediately
+      - User receives confirmation with the task ID
+      - Next list command shows the new task
+
+  - id: US2-List-Tasks
+    priority: P1
+    title: User views all their tasks
+    description: |
+      A user wants to see all their tasks with their completion status.
+      The application lists all tasks in a readable format.
+    given: User has created several tasks
+    when: User executes `todo list`
+    then: |
+      - All tasks are displayed in a numbered list
+      - Each task shows its completion status (☐ or ☑)
+      - Tasks are listed in the order they were added
+    acceptance_criteria:
+      - Output is human-readable and well-formatted
+      - Empty list shows "No tasks" message
+      - List command completes in < 100ms
+
+  - id: US3-Complete-Task
+    priority: P1
+    title: User marks a task as complete
+    description: |
+      A user wants to mark a task as done.
+      They specify the task ID and the application updates it.
+    given: User has tasks in their list
+    when: User executes `todo done 1`
+    then: |
+      - Task with ID 1 is marked as complete
+      - Confirmation message is shown
+      - Next list command shows the task as complete
+    acceptance_criteria:
+      - Only one task can be marked at a time
+      - Completing an already-complete task is idempotent
+      - User gets error message for invalid task IDs
+
+# ============================================================================
+# REQUIRED SECTION: Functional Requirements
+#
+# These describe WHAT the system must do (technology-agnostic).
+# Requirements are testable and unambiguous.
+# Use FR-NNN format for requirement IDs.
+# ============================================================================
+requirements:
+  - id: FR-001
+    description: System MUST accept "add" command with task description text
+    category: Core Functionality
+    priority: P1
+
+  - id: FR-002
+    description: System MUST store tasks persistently in a local file between sessions
+    category: Data Persistence
+    priority: P1
+
+  - id: FR-003
+    description: System MUST display all tasks with ID, description, and completion status
+    category: User Interface
+    priority: P1
+
+# ============================================================================
+# REQUIRED SECTION: Success Criteria
+#
+# These are measurable outcomes that indicate the system is working correctly.
+# They should be technology-agnostic and verifiable.
+# ============================================================================
+success_criteria:
+  - criterion: Users can add a task and see it persist across application restarts
+    measurable: "100% of added tasks remain after process restart"
+    priority: Critical
+
+  - criterion: All operations complete within acceptable response time
+    measurable: "Add/list/done commands complete in < 100ms for < 1000 tasks"
+    priority: High
+
+  - criterion: User receives clear feedback for all actions
+    measurable: "All commands return success/error message"
+    priority: Medium
+
+# ============================================================================
+# OPTIONAL: Key Entities (Data Model Concepts)
+#
+# High-level domain concepts (not implementation details like database tables).
+# Define only if your system involves significant data structures.
+# ============================================================================
+entities:
+  - name: Task
+    description: A single TODO item with a description and completion status
+    attributes:
+      - attribute: id
+        type: unique identifier
+        description: Unique identifier for the task
+
+      - attribute: description
+        type: text
+        description: The task description provided by the user
+
+      - attribute: completed
+        type: boolean
+        description: Whether the task has been marked as complete
+
+      - attribute: created_at
+        type: timestamp
+        description: When the task was created
+
+# ============================================================================
+# OPTIONAL: Non-Functional Requirements
+#
+# These describe constraints and quality attributes.
+# ============================================================================
+nonfunctional_requirements:
+  - category: Performance
+    description: Application startup time should be < 500ms for typical use
+
+  - category: Usability
+    description: Commands should follow common CLI conventions (--help, --version)
+
+  - category: Reliability
+    description: Data loss is unacceptable; all writes must be durable
+
+# ============================================================================
+# OPTIONAL: Metadata and Configuration
+#
+# Project-level settings that might affect generation.
+# ============================================================================
+metadata:
+  version: "1.0"
+  created_at: "2025-11-17"
+  author: "GoCreator Examples"
+  tags:
+    - simple
+    - beginner
+    - cli
+    - getting-started
+
+build_config:
+  go_version: "1.21+"
+  target_os: any
+  test_coverage_target: 80.0
+
+# ============================================================================
+# END OF SPECIFICATION
+#
+# This specification is complete and unambiguous. It contains:
+# ✓ User scenarios with acceptance criteria
+# ✓ Functional requirements (FR-001 through FR-003)
+# ✓ Success criteria with measurable outcomes
+# ✓ Key entities for data model
+# ✓ Non-functional requirements
+#
+# The system can proceed to FCS generation without clarification questions.
+# ============================================================================

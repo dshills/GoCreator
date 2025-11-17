@@ -1,0 +1,188 @@
+# GoCreator GoReleaser Configuration
+# Automated multi-platform binary builds and releases
+# See: https://goreleaser.com/
+
+version: 2
+
+project_name: gocreator
+
+before:
+  hooks:
+    # Run tests before building
+    - go test ./...
+    # Run linter before building
+    - golangci-lint run
+
+builds:
+  - id: gocreator
+    main: ./cmd/gocreator
+    binary: gocreator
+
+    # Version information injection
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.buildDate={{.Date}}
+
+    # Build for multiple platforms and architectures
+    goos:
+      - linux
+      - darwin
+      - windows
+
+    goarch:
+      - amd64
+      - arm64
+
+    # macOS arm64 specific settings (for Apple Silicon)
+    flags:
+      - -trimpath
+
+    env:
+      - CGO_ENABLED=0
+
+    # Build matrix exclusions (if any platforms don't support certain architectures)
+    ignore:
+      # Note: All combinations above are valid for gocreator
+
+archives:
+  # Create compressed archives of binaries
+  - id: default
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}'
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+# Create checksums for archives
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+# Generate source code archive
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}_{{ .Version }}_source'
+
+# Create GitHub releases
+release:
+  enabled: true
+  name_template: 'Release {{.Version}}'
+  prerelease_suffix: '-{{ .PreRelease }}'
+
+  # Use release notes from CHANGELOG
+  footer: |
+    **Full Changelog**: https://github.com/dshills/gocreator/compare/{{ .PreviousTag }}...{{ .CurrentTag }}
+
+# Generate SBOM (Software Bill of Materials) for security
+sboms:
+  - artifacts: archive
+    id: default
+
+# Homebrew tap configuration (optional, for macOS distribution)
+brews:
+  - name: gocreator
+    repository:
+      owner: dshills
+      name: homebrew-gocreator
+    homepage: 'https://github.com/dshills/gocreator'
+    description: 'Autonomous Go code generation system'
+    license: MIT
+    test: |
+      system "#{bin}/gocreator version"
+    install: |
+      bin.install "gocreator"
+
+# Nix package configuration (optional, for Linux distribution)
+nix:
+  - name: gocreator
+    repository:
+      owner: dshills
+      name: nur-packages
+    homepage: 'https://github.com/dshills/gocreator'
+    description: 'Autonomous Go code generation system'
+    license: MIT
+
+# Docker image configuration (optional)
+dockers:
+  - id: default
+    image_templates:
+      - 'ghcr.io/dshills/gocreator:{{ .Version }}'
+      - 'ghcr.io/dshills/gocreator:latest'
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - '--pull'
+      - '--label=org.opencontainers.image.created={{.Date}}'
+      - '--label=org.opencontainers.image.name={{.ProjectName}}'
+      - '--label=org.opencontainers.image.revision={{.FullCommit}}'
+      - '--label=org.opencontainers.image.version={{.Version}}'
+    extra_files:
+      - LICENSE
+      - CHANGELOG.md
+
+# Snapcraft configuration (optional, for Linux distribution)
+snapcrafts:
+  - name: gocreator
+    summary: Autonomous Go code generation system
+    description: 'GoCreator is an autonomous Go software generation system that reads structured project specifications, resolves ambiguities through clarification, and produces complete, functioning Go codebases.'
+    publish: true
+
+# Announce releases to various platforms
+announce:
+  twitter:
+    enabled: false
+  reddit:
+    enabled: false
+  slack:
+    enabled: false
+  discord:
+    enabled: false
+  mastodon:
+    enabled: false
+
+# Changelog generation from commits
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore'
+      - '^ci:'
+      - 'typo'
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))?!?:.+$'
+      order: 100
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))?!?:.+$'
+      order: 200
+    - title: Performance
+      regexp: '^.*?perf(\(.+\))?!?:.+$'
+      order: 300
+    - title: Documentation
+      regexp: '^.*?docs(\(.+\))?!?:.+$'
+      order: 400
+    - title: Refactoring
+      regexp: '^.*?refactor(\(.+\))?!?:.+$'
+      order: 500
+    - title: Others
+      order: 999
+
+# Sign binaries with cosign (optional, requires cosign installed)
+signs:
+  - artifacts: checksum
+    args: ['sign', '--key', '{{ env "COSIGN_KEY" }}', '${artifact}']
+    env:
+      - COSIGN_EXPERIMENTAL=1
+
+# Validation and verification
+validate:
+  - artifacts
+  - checksum
+  - sbom

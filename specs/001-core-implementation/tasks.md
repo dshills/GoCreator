@@ -29,24 +29,20 @@
   - ✅ T178: Linter checks (addressed critical issues)
   - ✅ T180: Code review via mcp-pr
 
-### Recent Quality Improvements (Latest Commit: c17ebde)
+### Recent Documentation Improvements (Latest Tasks: T167-T169)
 
-**Code Quality & Security Hardening**:
-- Added package-level documentation to 12 packages
-- Tightened file permissions for sensitive data (0600/0750)
-- Added nolint directives for legitimate security patterns (14 locations)
-- Fixed test failures and improved test reliability
-- Fixed errcheck issues for cleanup operations
-- Renamed unused parameters to underscore
-- All tests passing, working tree clean
+**Documentation Completed**:
+- ✅ T167: Updated README.md with complete CLI reference and usage examples
+- ✅ T168: Created docs/ARCHITECTURE.md documenting system architecture
+- ✅ T169: Created docs/DEVELOPMENT.md with contribution guidelines
+- ✅ T170: Godoc comments for all public APIs
+- ✅ T171-T173: Example specifications in /examples/
 
 ### Remaining Work
 
 - ⏳ **Phase 6: User Story 4** (T127-T135) - Incremental regeneration and caching
 - ⏳ **Phase 8 (Remaining)**: Final polish
   - T161-T163: Performance optimizations (LLM caching, parallel generation)
-  - T167-T169: Complete documentation (ARCHITECTURE.md, DEVELOPMENT.md)
-  - T171-T173: Example specifications
   - T174-T176: Release preparation (goreleaser, changelog)
   - T179: Security scanner review
   - T181: Verify 80% test coverage requirement
@@ -454,16 +450,16 @@
 
 ### Documentation
 
-- [ ] T167 [P] Update README.md with complete usage examples and CLI reference
-- [ ] T168 [P] Create docs/ARCHITECTURE.md documenting system architecture
-- [ ] T169 [P] Create docs/DEVELOPMENT.md with contribution guidelines
+- [x] T167 [P] Update README.md with complete usage examples and CLI reference
+- [x] T168 [P] Create docs/ARCHITECTURE.md documenting system architecture
+- [x] T169 [P] Create docs/DEVELOPMENT.md with contribution guidelines
 - [x] T170 [P] Add inline godoc comments to all public APIs
 
 ### Examples
 
-- [ ] T171 [P] Create examples/simple-spec.yaml with minimal working example
-- [ ] T172 [P] Create examples/medium-spec.yaml with realistic medium-sized project
-- [ ] T173 [P] Create examples/clarifications.json with batch mode example
+- [x] T171 [P] Create examples/simple-spec.yaml with minimal working example
+- [x] T172 [P] Create examples/medium-spec.yaml with realistic medium-sized project
+- [x] T173 [P] Create examples/clarifications.json with batch mode example
 
 ### Release Preparation
 

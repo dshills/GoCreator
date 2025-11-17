@@ -94,6 +94,7 @@ func setupCommands() {
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "console", "log format (console, json)")
 
 	// Setup command-specific flags
+	setupVersionFlags()
 	setupClarifyFlags()
 	setupGenerateFlags()
 	setupValidateFlags()
