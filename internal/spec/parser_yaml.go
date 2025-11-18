@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/internal/models"
+	"github.com/dshills/gocreator/internal/yamlutil"
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
 )
 
 // YAMLParser implements the Parser interface for YAML format
@@ -21,10 +21,10 @@ func (p *YAMLParser) Parse(content string) (*models.InputSpecification, error) {
 		return nil, fmt.Errorf("empty content provided")
 	}
 
-	// Parse YAML into a map
+	// Parse YAML into a map with enhanced error reporting
 	var data map[string]interface{}
-	if err := yaml.Unmarshal([]byte(content), &data); err != nil {
-		return nil, fmt.Errorf("failed to parse yaml: %w", err)
+	if err := yamlutil.Unmarshal([]byte(content), &data); err != nil {
+		return nil, fmt.Errorf("failed to parse specification: %w", err)
 	}
 
 	// Create InputSpecification

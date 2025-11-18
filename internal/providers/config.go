@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/dshills/gocreator/internal/yamlutil"
 )
 
 // ProviderConfig represents the configuration for a single LLM provider
@@ -141,10 +141,10 @@ func LoadConfig(path string) (*MultiProviderConfig, error) {
 	// Expand environment variables in the YAML content
 	expandedData := os.ExpandEnv(string(data))
 
-	// Parse YAML
+	// Parse YAML with enhanced error reporting
 	var config MultiProviderConfig
-	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
-		return nil, NewConfigError("", "failed to parse YAML", err)
+	if err := yamlutil.Unmarshal([]byte(expandedData), &config); err != nil {
+		return nil, NewConfigError("", "failed to parse provider configuration", err)
 	}
 
 	// Populate provider IDs from map keys

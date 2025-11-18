@@ -92,7 +92,7 @@ architecture:
 			name:        "Invalid YAML syntax",
 			content:     `name: TestProject\n\tinvalid: [unclosed`,
 			wantErr:     true,
-			errContains: "yaml",
+			errContains: "parse",
 		},
 		{
 			name:        "Empty content",

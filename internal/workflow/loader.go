@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/internal/models"
+	"github.com/dshills/gocreator/internal/yamlutil"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
@@ -60,9 +61,9 @@ func (l *Loader) LoadFromFile(path string) (*models.WorkflowDefinition, error) {
 func (l *Loader) LoadFromBytes(data []byte) (*models.WorkflowDefinition, error) {
 	var yamlWf yamlWorkflow
 
-	// Unmarshal YAML
-	if err := yaml.Unmarshal(data, &yamlWf); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	// Unmarshal YAML with enhanced error reporting
+	if err := yamlutil.Unmarshal(data, &yamlWf); err != nil {
+		return nil, fmt.Errorf("failed to parse workflow definition: %w", err)
 	}
 
 	// Convert to models.WorkflowDefinition
@@ -197,5 +198,5 @@ func (l *Loader) convertFromWorkflowDefinition(workflow *models.WorkflowDefiniti
 // ValidateYAML validates YAML syntax without full conversion
 func (l *Loader) ValidateYAML(data []byte) error {
 	var yamlWf yamlWorkflow
-	return yaml.Unmarshal(data, &yamlWf)
+	return yamlutil.Unmarshal(data, &yamlWf)
 }

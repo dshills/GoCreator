@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/internal/models"
+	"github.com/dshills/gocreator/internal/yamlutil"
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
 )
 
 // MarkdownParser implements the Parser interface for Markdown with YAML frontmatter
@@ -34,10 +34,10 @@ func (p *MarkdownParser) Parse(content string) (*models.InputSpecification, erro
 		return nil, fmt.Errorf("failed to extract frontmatter: %w", err)
 	}
 
-	// Parse frontmatter as YAML
+	// Parse frontmatter as YAML with enhanced error reporting
 	var data map[string]interface{}
-	if err := yaml.Unmarshal([]byte(frontmatter), &data); err != nil {
-		return nil, fmt.Errorf("failed to parse frontmatter yaml: %w", err)
+	if err := yamlutil.Unmarshal([]byte(frontmatter), &data); err != nil {
+		return nil, fmt.Errorf("failed to parse frontmatter: %w", err)
 	}
 
 	// Create InputSpecification
