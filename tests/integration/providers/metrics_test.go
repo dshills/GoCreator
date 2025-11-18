@@ -2,7 +2,6 @@ package providers_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -11,14 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// skipIfNoAPIKeys skips the test if required API keys are not set
-func skipIfNoAPIKeys(t *testing.T) {
-	t.Helper()
-	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("ANTHROPIC_API_KEY") == "" {
-		t.Skip("Skipping integration test: API keys not configured")
-	}
-}
 
 // TestMetrics_EndToEndFlow tests the complete metrics lifecycle:
 // 1. Execute task (simulated)

@@ -2,7 +2,6 @@ package providers_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/dshills/gocreator/internal/providers"
@@ -10,14 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// skipIfNoAPIKeys skips the test if required API keys are not set
-func skipIfNoAPIKeys(t *testing.T) {
-	t.Helper()
-	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("ANTHROPIC_API_KEY") == "" {
-		t.Skip("Skipping integration test: API keys not configured")
-	}
-}
 
 // TestFallbackBehavior_PrimaryToFallback tests that when the primary provider
 // for a role is unavailable, the system falls back to the first available fallback provider
