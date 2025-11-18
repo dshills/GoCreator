@@ -29,11 +29,15 @@ type llmCoder struct {
 	client        llm.Client
 	contextFilter *ContextFilter
 	metrics       *models.GenerationMetrics
+	stateManager  *IncrementalStateManager
+	incremental   bool
 }
 
 // CoderConfig contains configuration for creating a coder
 type CoderConfig struct {
-	LLMClient llm.Client
+	LLMClient   llm.Client
+	OutputDir   string // Required for incremental state management
+	Incremental bool   // Enable incremental regeneration
 }
 
 // NewCoder creates a new Coder instance
@@ -42,13 +46,21 @@ func NewCoder(cfg CoderConfig) (Coder, error) {
 		return nil, fmt.Errorf("LLM client is required")
 	}
 
-	return &llmCoder{
-		client: cfg.LLMClient,
+	coder := &llmCoder{
+		client:      cfg.LLMClient,
+		incremental: cfg.Incremental,
 		metrics: &models.GenerationMetrics{
 			PhaseTimings:  make(map[string]time.Duration),
 			CostBreakdown: make(map[string]float64),
 		},
-	}, nil
+	}
+
+	// Initialize state manager if incremental mode is enabled and outputDir is provided
+	if cfg.Incremental && cfg.OutputDir != "" {
+		coder.stateManager = NewIncrementalStateManager(cfg.OutputDir)
+	}
+
+	return coder, nil
 }
 
 // SetFCS sets the FCS and initializes the context filter
@@ -72,42 +84,68 @@ func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fc
 		c.SetFCS(fcs)
 	}
 
+	var tasksToGenerate []models.GenerationTask
+	var allFiles []string
+
+	// Determine which tasks need generation (incremental or full)
+	if c.incremental && c.stateManager != nil {
+		log.Info().Msg("Incremental regeneration mode enabled")
+
+		// Load previous state
+		state, err := c.stateManager.Load()
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to load incremental state, performing full generation")
+			tasksToGenerate = c.getAllTasks(plan)
+		} else {
+			// Detect changes
+			tasksToGenerate, allFiles, err = c.detectAndFilterChanges(state, plan, fcs)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to detect changes, performing full generation")
+				tasksToGenerate = c.getAllTasks(plan)
+			}
+		}
+	} else {
+		// Full generation
+		tasksToGenerate = c.getAllTasks(plan)
+	}
+
 	log.Info().
 		Str("plan_id", plan.ID).
-		Int("phases", len(plan.Phases)).
-		Msg("Starting code generation with smart context filtering")
+		Int("total_tasks", len(c.getAllTasks(plan))).
+		Int("tasks_to_generate", len(tasksToGenerate)).
+		Bool("incremental", c.incremental).
+		Msg("Starting code generation")
 
 	startTime := time.Now()
-	var allPatches []models.Patch
+	allPatches := make([]models.Patch, 0, len(tasksToGenerate))
 
-	// Process each phase in order
-	for _, phase := range plan.Phases {
-		log.Debug().
-			Str("phase", phase.Name).
-			Int("tasks", len(phase.Tasks)).
-			Msg("Processing generation phase")
-
-		// Process tasks in the phase
-		for _, task := range phase.Tasks {
-			// Only generate files, skip other task types
-			if task.Type != "generate_file" {
-				log.Debug().
-					Str("task_id", task.ID).
-					Str("task_type", task.Type).
-					Msg("Skipping non-generate_file task")
-				continue
-			}
-
-			patch, err := c.GenerateFile(ctx, task, plan, fcs)
-			if err != nil {
-				return nil, fmt.Errorf("failed to generate file for task %s: %w", task.ID, err)
-			}
-
-			allPatches = append(allPatches, patch)
+	// Generate files for filtered tasks
+	for _, task := range tasksToGenerate {
+		if task.Type != "generate_file" {
+			log.Debug().
+				Str("task_id", task.ID).
+				Str("task_type", task.Type).
+				Msg("Skipping non-generate_file task")
+			continue
 		}
+
+		patch, err := c.GenerateFile(ctx, task, plan, fcs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate file for task %s: %w", task.ID, err)
+		}
+
+		allPatches = append(allPatches, patch)
 	}
 
 	duration := time.Since(startTime)
+
+	// Update incremental state if enabled
+	if c.incremental && c.stateManager != nil && fcs != nil {
+		if err := c.updateIncrementalState(fcs, allPatches, allFiles); err != nil {
+			log.Warn().Err(err).Msg("Failed to update incremental state")
+		}
+	}
+
 	log.Info().
 		Str("plan_id", plan.ID).
 		Int("files_generated", len(allPatches)).
@@ -116,6 +154,108 @@ func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fc
 		Msg("Code generation completed")
 
 	return allPatches, nil
+}
+
+// getAllTasks extracts all tasks from all phases
+func (c *llmCoder) getAllTasks(plan *models.GenerationPlan) []models.GenerationTask {
+	var tasks []models.GenerationTask
+	for _, phase := range plan.Phases {
+		tasks = append(tasks, phase.Tasks...)
+	}
+	return tasks
+}
+
+// detectAndFilterChanges compares FCS versions and filters tasks
+func (c *llmCoder) detectAndFilterChanges(
+	state *IncrementalState,
+	plan *models.GenerationPlan,
+	newFCS *models.FinalClarifiedSpecification,
+) ([]models.GenerationTask, []string, error) {
+	// Compute new FCS checksum
+	newChecksum, err := ComputeFCSChecksum(newFCS)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to compute new FCS checksum: %w", err)
+	}
+
+	// If FCS hasn't changed, no regeneration needed
+	if state.FCSChecksum == newChecksum {
+		log.Info().Msg("FCS unchanged, skipping regeneration")
+		return []models.GenerationTask{}, nil, nil
+	}
+
+	// Reconstruct old FCS from state (simplified - in production, store FCS or use checksums better)
+	// For now, if checksums differ, detect what changed
+	// TODO: Store old FCS in state for proper change detection
+	// detector := NewChangeDetector()
+
+	// We don't have old FCS stored, so we'll analyze based on file dependencies
+	// Build list of all files from plan
+	allFiles := []string{}
+	allTasks := c.getAllTasks(plan)
+	for _, task := range allTasks {
+		if task.TargetPath != "" {
+			allFiles = append(allFiles, task.TargetPath)
+		}
+	}
+
+	// Since we don't have old FCS, regenerate files that are new or missing from state
+	var tasksToGenerate []models.GenerationTask
+	for _, task := range allTasks {
+		if task.Type != "generate_file" {
+			continue
+		}
+
+		// Check if file exists in state
+		_, exists := state.GeneratedFiles[task.TargetPath]
+		if !exists {
+			// New file, need to generate
+			tasksToGenerate = append(tasksToGenerate, task)
+			log.Debug().
+				Str("file", task.TargetPath).
+				Msg("New file detected, will generate")
+		}
+	}
+
+	// If no new files, but checksum changed, we need smarter detection
+	// For now, if FCS changed and we have existing files, regenerate all (TODO: improve)
+	if len(tasksToGenerate) == 0 && state.FCSChecksum != "" {
+		log.Warn().Msg("FCS changed but no new files detected, regenerating all files")
+		tasksToGenerate = allTasks
+	}
+
+	log.Info().
+		Int("total_files", len(allFiles)).
+		Int("files_to_regenerate", len(tasksToGenerate)).
+		Msg("Incremental change detection completed")
+
+	return tasksToGenerate, allFiles, nil
+}
+
+// updateIncrementalState updates the state after successful generation
+func (c *llmCoder) updateIncrementalState(
+	fcs *models.FinalClarifiedSpecification,
+	patches []models.Patch,
+	_ []string, // allFiles - reserved for future use
+) error {
+	// Build dependency graph from context filter
+	dependencyGraph := make(map[string][]string)
+	if c.contextFilter != nil {
+		// Extract dependencies from filtered FCS data
+		for _, patch := range patches {
+			// Use context filter to determine dependencies
+			filteredFCS := c.contextFilter.FilterForFile(patch.TargetFile, nil, fcs)
+			if filteredFCS != nil {
+				deps := []string{}
+				for _, entity := range filteredFCS.DataModel.Entities {
+					deps = append(deps, entity.Name)
+				}
+				dependencyGraph[patch.TargetFile] = deps
+			}
+		}
+	}
+
+	// Update state
+	return c.stateManager.UpdateState(fcs, patches, dependencyGraph)
 }
 
 // GenerateFile generates a single file based on task inputs

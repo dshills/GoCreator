@@ -331,7 +331,7 @@ func (cf *ContextFilter) addEntityWithDependencies(entityName string, relevant m
 }
 
 // determineRelevantPackages identifies which packages are relevant
-func (cf *ContextFilter) determineRelevantPackages(filePath string, plan *models.GenerationPlan, relevantEntities map[string]bool) map[string]bool {
+func (cf *ContextFilter) determineRelevantPackages(filePath string, _ *models.GenerationPlan, relevantEntities map[string]bool) map[string]bool {
 	relevant := make(map[string]bool)
 
 	// Always include the package this file belongs to

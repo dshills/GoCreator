@@ -34,6 +34,8 @@ type EngineConfig struct {
 	FileOps      fsops.FileOps
 	LogDecisions bool
 	EventChan    chan<- models.ProgressEvent
+	Incremental  bool   // Enable incremental regeneration
+	OutputDir    string // Output directory (required for incremental)
 }
 
 // NewEngine creates a new generation engine
@@ -55,7 +57,9 @@ func NewEngine(cfg EngineConfig) (Engine, error) {
 
 	// Create coder
 	coder, err := NewCoder(CoderConfig{
-		LLMClient: cfg.LLMClient,
+		LLMClient:   cfg.LLMClient,
+		OutputDir:   cfg.OutputDir,
+		Incremental: cfg.Incremental,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create coder: %w", err)
@@ -94,6 +98,7 @@ func NewEngine(cfg EngineConfig) (Engine, error) {
 		eventChan:    cfg.EventChan,
 	}, nil
 }
+
 // Generate creates a complete Go project from an FCS
 func (e *engine) Generate(ctx context.Context, fcs *models.FinalClarifiedSpecification, outputDir string) (*models.GenerationOutput, error) {
 	log.Info().

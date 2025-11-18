@@ -1,3 +1,4 @@
+// Package templates provides template-based boilerplate file generation for Go projects.
 package templates
 
 import (

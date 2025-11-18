@@ -18,10 +18,11 @@ import (
 )
 
 var (
-	generateOutput string
-	generateResume bool
-	generateBatch  string
-	generateDryRun bool
+	generateOutput      string
+	generateResume      bool
+	generateBatch       string
+	generateDryRun      bool
+	generateIncremental bool
 )
 
 var generateCmd = &cobra.Command{
@@ -38,9 +39,10 @@ The generation phase:
 Validation is skipped (use 'full' command to include validation).
 
 Options:
-  --resume      Resume from last checkpoint if available
-  --batch       Use pre-answered questions from JSON file
-  --dry-run     Show what would be generated without writing files
+  --resume       Resume from last checkpoint if available
+  --batch        Use pre-answered questions from JSON file
+  --dry-run      Show what would be generated without writing files
+  --incremental  Enable incremental regeneration (only regenerate changed files)
 
 Example:
   # Basic generation
@@ -63,6 +65,7 @@ func setupGenerateFlags() {
 	generateCmd.Flags().BoolVar(&generateResume, "resume", false, "resume from last checkpoint if available")
 	generateCmd.Flags().StringVar(&generateBatch, "batch", "", "path to JSON file with pre-answered questions")
 	generateCmd.Flags().BoolVar(&generateDryRun, "dry-run", false, "show what would be generated without writing files")
+	generateCmd.Flags().BoolVar(&generateIncremental, "incremental", false, "enable incremental regeneration (only regenerate changed files)")
 }
 
 func runGenerate(_ *cobra.Command, args []string) error {
@@ -87,7 +90,7 @@ func runGenerate(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if err := runGenerationWithProgress(fcs, generateOutput); err != nil {
+	if err := runGenerationWithProgress(fcs, generateOutput, generateIncremental); err != nil {
 		return err
 	}
 
@@ -194,7 +197,7 @@ func runFinalization(outputDir string, dryRun bool) error {
 }
 
 // runGenerationWithProgress runs the generation engine with real-time progress tracking
-func runGenerationWithProgress(fcs *models.FinalClarifiedSpecification, outputDir string) error {
+func runGenerationWithProgress(fcs *models.FinalClarifiedSpecification, outputDir string, incremental bool) error {
 	// Create event channel for progress updates
 	eventChan := make(chan models.ProgressEvent, 100)
 
@@ -246,6 +249,8 @@ func runGenerationWithProgress(fcs *models.FinalClarifiedSpecification, outputDi
 		FileOps:      fileOps,
 		LogDecisions: true,
 		EventChan:    eventChan,
+		Incremental:  incremental,
+		OutputDir:    outputDir,
 	})
 	if err != nil {
 		return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create generation engine: %w", err)}
