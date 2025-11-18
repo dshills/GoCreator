@@ -9,7 +9,7 @@ run:
   skip-dirs:
     - vendor
     - tests
-  go: '1.25'
+  go: '1.23'
 
 output:
   format: colored-line-number
