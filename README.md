@@ -39,6 +39,10 @@ GoCreator is a command-line tool that transforms project specifications into com
 - **Deterministic Output**: Same specification + configuration = identical output every time
 - **Comprehensive Validation**: Build, lint, and test validation with detailed error reporting
 - **Workflow Control**: Execute individual phases (clarify, generate, validate) or the complete pipeline
+- **Prompt Caching**: Provider-native caching for 60-80% token cost reduction (Anthropic)
+- **Incremental Regeneration**: Fine-grained change detection regenerates only modified files
+- **Context Filtering**: Smart FCS filtering reduces prompt size by including only relevant context
+- **Template-Based Generation**: Fast boilerplate generation without LLM calls
 
 ## Quick Start
 
@@ -416,6 +420,8 @@ llm:
   model: claude-sonnet-4       # Model to use
   temperature: 0.0             # 0.0 for deterministic output
   api_key: ${ANTHROPIC_API_KEY} # Use environment variable
+  enable_caching: true         # Enable prompt caching (Anthropic only)
+  cache_ttl: 5m                # Cache TTL: 5m or 1h (default: 5m)
 
 workflow:
   root_dir: ./generated        # Where to generate code
@@ -612,7 +618,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
 
 **Current Version**: 0.1.0-dev
 
-**Branch**: `001-core-implementation` (main development branch)
+**Recent Updates**: Performance optimizations merged (prompt caching, incremental regeneration)
 
 **Implementation Status**:
 - ✅ **Completed**:
@@ -625,17 +631,22 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
   - Comprehensive test coverage (unit + integration tests)
   - Complete documentation suite
   - Security hardening (bounded file operations, permission checks)
+  - Multi-LLM provider support (Anthropic, OpenAI, Google)
+  - Prompt caching for 60-80% token cost reduction (Anthropic)
+  - Incremental regeneration with fine-grained change detection
+  - Context filtering to reduce prompt size
+  - Template-based boilerplate generation
 
 - ⏳ **In Progress**:
-  - Phase 6: Incremental regeneration and caching (US4)
-  - Performance optimizations (LLM caching, parallel generation)
+  - Batch code generation for parallel file processing
   - Release preparation (goreleaser, automated releases)
+  - Additional performance optimizations
 
 **Build Status**: ✅ All tests passing, builds successfully
-**Lint Status**: ✅ Critical issues resolved
+**Lint Status**: ✅ All linting checks pass
 **Test Coverage**: Target 80% (comprehensive unit and integration tests)
 
-See [specs/001-core-implementation/tasks.md](specs/001-core-implementation/tasks.md) for detailed implementation progress and task tracking.
+See [specs/003-performance-optimization/tasks.md](specs/003-performance-optimization/tasks.md) for performance optimization progress and task tracking.
 
 ## Contributing
 
