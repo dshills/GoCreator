@@ -57,7 +57,6 @@ linters:
     - godot           # Comment punctuation - too noisy
     - godox           # TODO/FIXME comments are intentional project markers
     - goconst         # Test string constants don't justify extraction
-    - gocyclo         # Orchestration and comprehensive test functions justify complexity
     - mnd             # Magic number detector - too noisy
     - lll             # Line length - formatters handle this
     - nlreturn        # Too opinionated
