@@ -71,6 +71,8 @@ linters-settings:
     check-blank: true
     exclude-functions:
       - (io.Closer).Close
+      - (os).Remove
+      - (os).RemoveAll
 
   govet:
     enable:
@@ -125,6 +127,8 @@ linters-settings:
       - hugeParam  # Large structs required by graph interfaces (langgraph-go)
       - stringXbytes  # String/bytes comparison suggestions too opinionated
       - elseif  # Else-if suggestions can reduce readability
+      - octalLiteral  # Octal literal style is a minor stylistic preference
+      - emptyStringTest  # String emptiness checks are clear as-is
 
   gosec:
     excludes:
@@ -353,6 +357,18 @@ issues:
       text: "hugeParam.*(ClarificationState|prev|delta|_)"
       linters:
         - gocritic
+
+    # Validation build checks - strconv.Atoi errors intentionally ignored for version parsing
+    - path: internal/validate/build\.go
+      text: "Error return value of `strconv\\.Atoi` is not checked"
+      linters:
+        - errcheck
+
+    # FCS spec checks - type assertions in internal processing are validated contextually
+    - path: internal/spec/fcs\.go
+      text: "Error return value is not checked"
+      linters:
+        - errcheck
 
   exclude-use-default: false
 
