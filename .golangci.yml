@@ -122,6 +122,9 @@ linters-settings:
       - commentedOutCode
       - whyNoLint
       - ifElseChain  # Switch statements can reduce readability in some cases
+      - hugeParam  # Large structs required by graph interfaces (langgraph-go)
+      - stringXbytes  # String/bytes comparison suggestions too opinionated
+      - elseif  # Else-if suggestions can reduce readability
 
   gosec:
     excludes:

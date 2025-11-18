@@ -40,8 +40,13 @@ jobs:
     - name: Verify dependencies
       run: go mod verify
 
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out -covermode=atomic $(go list ./...)
+    - name: Run tests (Unix)
+      if: matrix.os != 'windows-latest'
+      run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+    - name: Run tests (Windows)
+      if: matrix.os == 'windows-latest'
+      run: go test -v -race ./...
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
