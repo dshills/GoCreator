@@ -6,6 +6,8 @@
 *.dylib
 *.test
 *.out
+gocreator
+!bin/gocreator
 
 # Test binary, built with `go test -c`
 *.test
@@ -15,6 +17,7 @@
 coverage.out
 coverage.html
 *.coverprofile
+*_coverage.out
 
 # Dependency directories
 vendor/
@@ -83,3 +86,14 @@ review-results/
 # GoCreator specific artifacts
 .gocreator/
 generated/
+
+# GitHub Actions artifacts
+.github/workflows/*.log
+
+# Code coverage reports
+coverage/
+htmlcov/
+
+# Benchmarking results
+*.bench
+bench/
