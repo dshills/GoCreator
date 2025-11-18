@@ -1,0 +1,56 @@
+# Custom Endpoint Configuration Example
+#
+# This example shows how to configure custom API endpoints,
+# useful for self-hosted models or OpenAI-compatible APIs.
+
+schema_version: "1.0"
+
+providers:
+  # Local LLaMA via OpenAI-compatible API
+  local-llama:
+    type: openai
+    model: llama-3-70b
+    api_key: not-needed-for-local
+    endpoint: http://localhost:8000/v1
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+  # Azure OpenAI Service
+  azure-gpt4:
+    type: openai
+    model: gpt-4-turbo
+    api_key: ${AZURE_OPENAI_KEY}
+    endpoint: https://your-resource.openai.azure.com
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+  # Standard OpenAI (fallback)
+  openai-standard:
+    type: openai
+    model: gpt-4-turbo
+    api_key: ${OPENAI_API_KEY}
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+roles:
+  coder:
+    provider: local-llama
+    fallback:
+      - azure-gpt4
+      - openai-standard
+
+  reviewer:
+    provider: azure-gpt4
+    fallback:
+      - openai-standard
+
+default_provider: openai-standard
+
+retry:
+  max_attempts: 3
+  initial_backoff: 1s
+  max_backoff: 30s
+  multiplier: 2.0

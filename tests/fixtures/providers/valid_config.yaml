@@ -1,0 +1,49 @@
+schema_version: "1.0"
+
+providers:
+  openai-fast:
+    type: openai
+    model: gpt-4-turbo
+    api_key: sk-test-key-openai-123
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+  anthropic-precise:
+    type: anthropic
+    model: claude-3-5-sonnet-20241022
+    api_key: sk-ant-test-key-456
+    parameters:
+      temperature: 0.5
+      max_tokens: 8192
+
+roles:
+  coder:
+    provider: openai-fast
+    fallback:
+      - anthropic-precise
+    parameters:
+      temperature: 0.8
+
+  reviewer:
+    provider: anthropic-precise
+    parameters:
+      temperature: 0.2
+
+  planner:
+    provider: openai-fast
+    parameters:
+      temperature: 0.6
+
+  clarifier:
+    provider: anthropic-precise
+    parameters:
+      temperature: 0.3
+
+default_provider: anthropic-precise
+
+retry:
+  max_attempts: 3
+  initial_backoff: 1s
+  max_backoff: 30s
+  multiplier: 2.0

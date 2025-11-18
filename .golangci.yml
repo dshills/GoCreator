@@ -317,6 +317,24 @@ issues:
       linters:
         - gocyclo
 
+    # Init functions required for provider registration pattern in adapters
+    - text: "don't use `init` function"
+      linters:
+        - gochecknoinits
+      path: src/providers/adapters/
+
+    # Unused context parameters in interface implementations
+    - text: "unused-parameter.*parameter 'ctx' seems to be unused"
+      linters:
+        - revive
+      path: src/providers/
+
+    # File reading from configuration path is necessary
+    - text: "G304.*Potential file inclusion via variable"
+      linters:
+        - gosec
+      path: src/providers/config\.go
+
   exclude-use-default: false
 
 severity:

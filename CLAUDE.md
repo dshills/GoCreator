@@ -250,6 +250,8 @@ All extensions must operate through the FCS, not through freeform LLM prompting.
 ## Active Technologies
 - Go 1.21+ (requires generics support) (001-core-implementation)
 - File-based (specs, FCS, execution logs, generated code); Optional: SQLite for execution history (001-core-implementation)
+- Go 1.21+ (requires generics for provider type parameters and flexible configuration handling) (002-multi-llm)
+- File-based configuration (YAML/JSON), optional SQLite for metrics persistence (consistent with existing execution history storage) (002-multi-llm)
 
 ## Recent Changes
 - 001-core-implementation: Added Go 1.21+ (requires generics support)

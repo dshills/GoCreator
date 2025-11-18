@@ -1,0 +1,412 @@
+# Provider Registry API Contract
+# Feature: 002-multi-llm
+# Date: 2025-11-17
+# Purpose: Define interfaces and contracts for multi-provider support
+
+---
+
+# Core Interfaces
+
+## LLMProvider Interface
+
+The provider interface that all LLM provider adapters must implement.
+
+```go
+type LLMProvider interface {
+    // Initialize validates credentials and prepares the provider for use.
+    // Must be called before Execute. Returns error if credentials are invalid.
+    // Timeout: Should complete within 2 seconds.
+    Initialize(ctx context.Context) error
+
+    // Execute sends a request to the LLM provider and returns the response.
+    // Implements retry logic internally according to RetryConfig.
+    // Returns error if all retry attempts fail.
+    Execute(ctx context.Context, req Request) (Response, error)
+
+    // Name returns the unique identifier for this provider instance.
+    // Used for metrics tracking and logging.
+    Name() string
+
+    // Type returns the provider type (openai, anthropic, google).
+    Type() ProviderType
+
+    // Shutdown gracefully closes any resources held by the provider.
+    // Must be safe to call multiple times.
+    Shutdown(ctx context.Context) error
+}
+```
+
+**Contract Requirements**:
+- `Initialize` must be idempotent (safe to call multiple times)
+- `Execute` must be thread-safe (can be called concurrently)
+- `Name` must return the provider ID from configuration
+- `Shutdown` must not error if called multiple times
+
+---
+
+## ProviderRegistry Interface
+
+The registry that manages provider selection and routing.
+
+```go
+type ProviderRegistry interface {
+    // SelectProvider chooses the appropriate provider for a given role.
+    // Returns the provider instance and the provider ID.
+    // Falls back through FallbackProviders and DefaultProvider if needed.
+    // Returns error only if no provider is available for the role.
+    SelectProvider(ctx context.Context, role Role) (LLMProvider, string, error)
+
+    // RecordMetrics records performance metrics for a completed task.
+    // Non-blocking - metrics are written asynchronously if possible.
+    RecordMetrics(ctx context.Context, metric ProviderMetrics) error
+
+    // GetMetrics retrieves aggregated metrics for a provider-role combination.
+    // Time range filtering via since parameter (0 = all time).
+    // Returns summary statistics (avg response time, success rate, etc.).
+    GetMetrics(ctx context.Context, providerID string, role Role, since time.Time) (*MetricsSummary, error)
+
+    // Shutdown gracefully shuts down all providers and flushes metrics.
+    Shutdown(ctx context.Context) error
+}
+```
+
+**Contract Requirements**:
+- `SelectProvider` must complete in < 10ms (in-memory lookup)
+- `RecordMetrics` must not block task execution (async write preferred)
+- `GetMetrics` must complete in < 2 seconds
+- `Shutdown` must flush all pending metrics before returning
+
+---
+
+## Configuration Loader Interface
+
+Loads and validates multi-provider configuration.
+
+```go
+type ConfigLoader interface {
+    // LoadConfig reads configuration from file and validates it.
+    // Returns error if file doesn't exist or validation fails.
+    LoadConfig(path string) (*MultiProviderConfig, error)
+
+    // ValidateConfig validates a configuration object.
+    // Checks provider references, parameter types, etc.
+    ValidateConfig(config *MultiProviderConfig) error
+}
+```
+
+---
+
+# Data Contracts
+
+## Request/Response Structures
+
+### Request
+```go
+type Request struct {
+    Prompt      string            // The prompt to send to the LLM
+    Role        Role              // The role context for this request
+    Parameters  map[string]any    // Merged parameters (global + role overrides)
+    MaxTokens   int               // Maximum tokens in response
+    Temperature float64           // Sampling temperature
+    Metadata    map[string]string // Additional context (task ID, etc.)
+}
+```
+
+**Validation**:
+- Prompt must be non-empty
+- Role must be valid Role enum
+- MaxTokens must be > 0
+- Temperature must be 0.0 <= temp <= 2.0
+
+### Response
+```go
+type Response struct {
+    Content        string            // The LLM's response text
+    TokensPrompt   int               // Tokens used in prompt
+    TokensResponse int               // Tokens in response
+    Model          string            // Actual model used
+    Metadata       map[string]string // Provider-specific metadata
+    Error          error             // Non-nil if request failed
+}
+```
+
+---
+
+## Metrics Structures
+
+### ProviderMetrics (event)
+```go
+type ProviderMetrics struct {
+    ProviderID      string
+    Role            Role
+    Timestamp       time.Time
+    ResponseTimeMs  int64
+    TokensPrompt    int
+    TokensCompletion int
+    Status          MetricStatus  // success, failure, retry
+    ErrorMessage    string        // If Status == failure
+}
+```
+
+### MetricsSummary (aggregated)
+```go
+type MetricsSummary struct {
+    ProviderID      string
+    Role            Role
+    TimeRange       TimeRange
+    AvgResponseTime float64       // Average response time in ms
+    P50ResponseTime int64         // 50th percentile response time
+    P95ResponseTime int64         // 95th percentile response time
+    TotalRequests   int           // Total number of requests
+    SuccessCount    int           // Successful requests
+    FailureCount    int           // Failed requests
+    SuccessRate     float64       // Success rate (0.0 - 1.0)
+    TotalTokens     int           // Sum of prompt + completion tokens
+    AvgTokensPerReq float64       // Average tokens per request
+}
+
+type TimeRange struct {
+    Start time.Time
+    End   time.Time
+}
+```
+
+---
+
+# Error Contracts
+
+## Error Types
+
+### ProviderError
+```go
+type ProviderError struct {
+    ProviderID string
+    Code       ErrorCode
+    Message    string
+    Cause      error
+    Retryable  bool
+}
+
+type ErrorCode string
+
+const (
+    ErrorCodeAuth         ErrorCode = "AUTH_FAILED"       // Invalid credentials
+    ErrorCodeRateLimit    ErrorCode = "RATE_LIMIT"        // Rate limit exceeded
+    ErrorCodeNetwork      ErrorCode = "NETWORK_ERROR"     // Network failure
+    ErrorCodeTimeout      ErrorCode = "TIMEOUT"           // Request timeout
+    ErrorCodeInvalidInput ErrorCode = "INVALID_INPUT"     // Malformed request
+    ErrorCodeServerError  ErrorCode = "SERVER_ERROR"      // Provider 5xx error
+    ErrorCodeUnknown      ErrorCode = "UNKNOWN"           // Unexpected error
+)
+```
+
+**Retryable Error Codes**:
+- `RATE_LIMIT`: Yes (with backoff)
+- `NETWORK_ERROR`: Yes
+- `TIMEOUT`: Yes
+- `SERVER_ERROR`: Yes
+- `AUTH_FAILED`: No
+- `INVALID_INPUT`: No
+- `UNKNOWN`: No
+
+### ConfigError
+```go
+type ConfigError struct {
+    Field   string  // Config field with error
+    Message string
+    Cause   error
+}
+```
+
+---
+
+# Configuration Schema (YAML)
+
+## Root Configuration
+```yaml
+# Schema version for future compatibility
+schema_version: "1.0"
+
+# Provider definitions
+providers:
+  <provider-id>: ProviderConfig
+
+# Role assignments
+roles:
+  <role>: RoleAssignment
+
+# Default provider fallback
+default_provider: string
+
+# Global retry configuration
+retry: RetryConfig
+```
+
+## ProviderConfig Schema
+```yaml
+type: string              # Required: openai | anthropic | google
+model: string             # Required: model identifier
+api_key: string           # Required: API key (supports env var: ${VAR_NAME})
+endpoint: string          # Optional: custom endpoint URL
+parameters:               # Optional: global parameters
+  temperature: float      # 0.0 - 2.0
+  max_tokens: int         # > 0
+  top_p: float            # 0.0 - 1.0
+  # ... provider-specific params
+```
+
+**Validation Rules**:
+- `type` must be one of: openai, anthropic, google
+- `model` must be non-empty string
+- `api_key` must be non-empty (after env var resolution)
+- `endpoint` must be valid URL if provided
+- `parameters.temperature` must be 0.0 <= x <= 2.0
+- `parameters.max_tokens` must be > 0
+
+## RoleAssignment Schema
+```yaml
+provider: string          # Required: primary provider ID
+fallback:                 # Optional: fallback provider IDs
+  - string
+  - string
+parameters:               # Optional: role-specific overrides
+  temperature: float
+  max_tokens: int
+  # Only tuning parameters, no critical params
+```
+
+**Validation Rules**:
+- `provider` must reference existing provider ID
+- All `fallback` entries must reference existing provider IDs
+- `fallback` must not contain duplicates
+- `parameters` must not include: type, model, api_key, endpoint
+
+## RetryConfig Schema
+```yaml
+max_attempts: int         # Required: 1-10 (default: 3)
+initial_backoff: duration # Required: > 0 (default: 1s)
+max_backoff: duration     # Required: > initial_backoff (default: 30s)
+multiplier: float         # Required: > 1.0 (default: 2.0)
+```
+
+---
+
+# Behavioral Contracts
+
+## Provider Selection Algorithm
+
+```
+Input: Role
+Output: LLMProvider, ProviderID, Error
+
+1. Look up RoleAssignment for Role
+2. If found:
+   a. Try PrimaryProvider
+   b. If unavailable/failed, try FallbackProviders in order
+3. If not found OR all role providers failed:
+   a. Try DefaultProvider
+4. If all providers failed:
+   a. Return error with details of all attempted providers
+
+Provider is "available" if:
+- Provider exists in registry
+- Provider.Initialize() succeeded (validated at startup)
+```
+
+## Retry Behavior
+
+```
+Input: Request, RetryConfig
+Output: Response, Error
+
+1. Attempt = 1
+2. Backoff = InitialBackoff
+3. While Attempt <= MaxAttempts:
+   a. Execute request
+   b. If success: return Response
+   c. If error is not retryable: return Error
+   d. If Attempt < MaxAttempts:
+      i. Sleep for Backoff duration
+      ii. Backoff = min(Backoff * Multiplier, MaxBackoff)
+      iii. Attempt++
+4. Return error with "max attempts exceeded" message
+```
+
+## Metrics Recording
+
+```
+Input: TaskExecutionContext, Response
+Output: ProviderMetrics (written to storage)
+
+On task completion (success or failure):
+1. Calculate ResponseTimeMs = EndTime - StartTime
+2. Extract TokensPrompt, TokensCompletion from Response
+3. Determine Status (success | failure | retry)
+4. Create ProviderMetrics event
+5. Write to metrics storage (async if possible)
+6. Log metric event (for audit trail)
+```
+
+---
+
+# Thread Safety Guarantees
+
+| Operation | Concurrency Guarantee | Synchronization |
+|-----------|----------------------|-----------------|
+| SelectProvider | Thread-safe reads | No lock (immutable maps after init) |
+| RecordMetrics | Thread-safe writes | Mutex or channel |
+| GetMetrics | Thread-safe reads | RWMutex read lock |
+| Provider.Execute | Thread-safe | Provider SDK handles concurrency |
+| Config loading | Single-threaded | Called only at startup |
+
+---
+
+# Performance Contracts
+
+| Operation | Target Latency | Rationale |
+|-----------|---------------|-----------|
+| SelectProvider | < 10ms | In-memory map lookup (SC-002) |
+| Initialize (per provider) | < 2s | Credential validation (startup) |
+| Execute | Variable | Depends on LLM provider |
+| RecordMetrics | < 1ms | Async write preferred |
+| GetMetrics | < 2s | SQLite indexed query (SC-004) |
+| Shutdown | < 5s | Flush pending metrics |
+
+---
+
+# Backward Compatibility
+
+## Single-Provider Configuration Support
+
+Legacy configuration (single provider):
+```yaml
+provider:
+  type: openai
+  model: gpt-4
+  api_key: ${OPENAI_API_KEY}
+```
+
+Must be automatically converted to:
+```yaml
+providers:
+  default:
+    type: openai
+    model: gpt-4
+    api_key: ${OPENAI_API_KEY}
+
+default_provider: default
+
+retry:
+  max_attempts: 3
+  initial_backoff: 1s
+  max_backoff: 30s
+  multiplier: 2.0
+```
+
+All roles will use `default` provider with no role assignments.
+
+---
+
+**Contract Version**: 1.0
+**Last Updated**: 2025-11-17
+**Status**: Draft - Ready for implementation

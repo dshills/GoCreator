@@ -1,0 +1,106 @@
+# Multi-Provider Configuration Example for GoCreator
+#
+# This configuration demonstrates how to set up multiple LLM providers
+# with role-based routing, fallback chains, and parameter overrides.
+#
+# Schema version for compatibility tracking
+schema_version: "1.0"
+
+# Provider Definitions
+# Each provider has a unique ID, type, model, and API credentials
+providers:
+  # OpenAI GPT-4 Turbo - Fast, good for code generation
+  openai-gpt4-turbo:
+    type: openai
+    model: gpt-4-turbo
+    api_key: ${OPENAI_API_KEY}  # Environment variable expansion
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+  # OpenAI GPT-3.5 - Cost-effective, good for simple tasks
+  openai-gpt35:
+    type: openai
+    model: gpt-3.5-turbo
+    api_key: ${OPENAI_API_KEY}
+    parameters:
+      temperature: 0.6
+      max_tokens: 2048
+
+  # Anthropic Claude 3.5 Sonnet - Excellent for code review and analysis
+  anthropic-claude-sonnet:
+    type: anthropic
+    model: claude-3-5-sonnet-20241022
+    api_key: ${ANTHROPIC_API_KEY}
+    parameters:
+      temperature: 0.5
+      max_tokens: 8192
+
+  # Anthropic Claude 3 Opus - Most capable, use for complex tasks
+  anthropic-claude-opus:
+    type: anthropic
+    model: claude-3-opus-20240229
+    api_key: ${ANTHROPIC_API_KEY}
+    parameters:
+      temperature: 0.4
+      max_tokens: 4096
+
+  # Google Gemini 1.5 Pro - Good balance of speed and capability
+  google-gemini-pro:
+    type: google
+    model: gemini-1.5-pro
+    api_key: ${GOOGLE_API_KEY}
+    parameters:
+      temperature: 0.6
+      max_tokens: 8192
+
+# Role Assignments
+# Map each role to a primary provider with optional fallbacks
+roles:
+  # Coder role - generates code implementations
+  coder:
+    provider: openai-gpt4-turbo
+    fallback:
+      - anthropic-claude-sonnet
+      - google-gemini-pro
+    parameters:
+      temperature: 0.8  # Higher creativity for code generation
+
+  # Reviewer role - reviews code for quality and security
+  reviewer:
+    provider: anthropic-claude-sonnet
+    fallback:
+      - anthropic-claude-opus
+      - openai-gpt4-turbo
+    parameters:
+      temperature: 0.2  # Lower temperature for consistent reviews
+
+  # Planner role - creates technical plans and architecture
+  planner:
+    provider: anthropic-claude-opus
+    fallback:
+      - google-gemini-pro
+      - openai-gpt4-turbo
+    parameters:
+      temperature: 0.6  # Balanced for planning
+
+  # Clarifier role - asks clarification questions
+  clarifier:
+    provider: google-gemini-pro
+    fallback:
+      - anthropic-claude-sonnet
+      - openai-gpt35
+    parameters:
+      temperature: 0.3  # Focused questions
+
+# Default Provider
+# Used when a role has no assignment or all assigned providers fail
+default_provider: openai-gpt4-turbo
+
+# Retry Configuration
+# Controls exponential backoff retry behavior for transient failures
+retry:
+  max_attempts: 3           # Maximum retry attempts
+  initial_backoff: 1s       # Initial backoff duration
+  max_backoff: 30s          # Maximum backoff duration
+  multiplier: 2.0           # Backoff multiplier (exponential)

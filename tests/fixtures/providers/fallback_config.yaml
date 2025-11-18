@@ -1,0 +1,47 @@
+schema_version: "1.0"
+
+providers:
+  primary-provider:
+    type: openai
+    model: gpt-4-turbo
+    api_key: sk-test-primary-key
+    parameters:
+      temperature: 0.7
+
+  fallback-1:
+    type: anthropic
+    model: claude-3-5-sonnet-20241022
+    api_key: sk-test-fallback1-key
+    parameters:
+      temperature: 0.6
+
+  fallback-2:
+    type: google
+    model: gemini-1.5-pro
+    api_key: test-fallback2-key
+    parameters:
+      temperature: 0.5
+
+  default-provider:
+    type: anthropic
+    model: claude-3-5-sonnet-20241022
+    api_key: sk-test-default-key
+    parameters:
+      temperature: 0.8
+
+roles:
+  coder:
+    provider: primary-provider
+    fallback:
+      - fallback-1
+      - fallback-2
+    parameters:
+      temperature: 0.7
+
+default_provider: default-provider
+
+retry:
+  max_attempts: 3
+  initial_backoff: 1s
+  max_backoff: 30s
+  multiplier: 2.0
