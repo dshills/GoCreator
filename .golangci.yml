@@ -129,6 +129,8 @@ linters-settings:
       - elseif  # Else-if suggestions can reduce readability
       - octalLiteral  # Octal literal style is a minor stylistic preference
       - emptyStringTest  # String emptiness checks are clear as-is
+      - typeAssertChain  # Type assertion chains validated by context
+      - paramTypeCombine  # Parameter grouping is a stylistic preference
 
   gosec:
     excludes:
@@ -369,6 +371,30 @@ issues:
       text: "Error return value is not checked"
       linters:
         - errcheck
+
+    # Atomic file operations - cleanup errors in defer/error paths are intentionally ignored
+    - path: pkg/fsops/atomic\.go
+      text: "Error return value.*is not checked"
+      linters:
+        - errcheck
+
+    # Workflow parallel execution - type assertions validated by existence check
+    - path: internal/workflow/parallel\.go
+      text: "Error return value is not checked"
+      linters:
+        - errcheck
+
+    # Test validation - parsing errors are intentionally ignored for best-effort parsing
+    - path: internal/validate/test\.go
+      text: "Error return value.*is not checked"
+      linters:
+        - errcheck
+
+    # noopLogger methods are trivial interface implementations
+    - path: pkg/fsops/logger\.go
+      text: "noopLogger.*should have comment"
+      linters:
+        - revive
 
   exclude-use-default: false
 

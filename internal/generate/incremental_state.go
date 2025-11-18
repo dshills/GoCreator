@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/dshills/gocreator/internal/models"
@@ -59,6 +60,7 @@ type FileState struct {
 
 // IncrementalStateManager manages incremental state persistence
 type IncrementalStateManager struct {
+	mu            sync.RWMutex
 	stateFilePath string
 	state         *IncrementalState
 }
@@ -118,7 +120,9 @@ func (ism *IncrementalStateManager) Load() (*IncrementalState, error) {
 		Str("fcs_checksum", state.FCSChecksum).
 		Msg("Loaded incremental state")
 
+	ism.mu.Lock()
 	ism.state = &state
+	ism.mu.Unlock()
 	return &state, nil
 }
 
@@ -153,7 +157,9 @@ func (ism *IncrementalStateManager) Save(state *IncrementalState) error {
 		Int("files", len(state.GeneratedFiles)).
 		Msg("Saved incremental state")
 
+	ism.mu.Lock()
 	ism.state = state
+	ism.mu.Unlock()
 	return nil
 }
 
