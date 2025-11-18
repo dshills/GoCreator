@@ -19,6 +19,10 @@ type IncrementalState struct {
 	// FCSChecksum is the SHA-256 checksum of the entire FCS
 	FCSChecksum string `json:"fcs_checksum"`
 
+	// PreviousFCS stores the complete FCS from the last generation
+	// This enables fine-grained change detection
+	PreviousFCS *models.FinalClarifiedSpecification `json:"previous_fcs,omitempty"`
+
 	// GeneratedFiles maps file path to its state
 	GeneratedFiles map[string]FileState `json:"generated_files"`
 
@@ -171,6 +175,16 @@ func ComputeFileChecksum(content string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// normalizePath normalizes a file path for consistent storage in dependency graphs
+// Uses filepath.Clean to remove redundant separators and resolve . and .. elements
+func normalizePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	// Clean the path to ensure consistent format
+	return filepath.Clean(path)
+}
+
 // UpdateState updates the state after successful generation
 func (ism *IncrementalStateManager) UpdateState(
 	fcs *models.FinalClarifiedSpecification,
@@ -191,30 +205,35 @@ func (ism *IncrementalStateManager) UpdateState(
 		return fmt.Errorf("failed to compute FCS checksum: %w", err)
 	}
 
-	// Update FCS checksum
+	// Update FCS checksum and store the complete FCS for next comparison
 	ism.state.FCSChecksum = fcsChecksum
+	ism.state.PreviousFCS = fcs
 	ism.state.LastGeneration = time.Now()
 
-	// Update dependency graph
+	// Update dependency graph with normalized paths
 	for path, deps := range dependencyGraph {
-		ism.state.DependencyGraph[path] = deps
+		normalizedPath := normalizePath(path)
+		ism.state.DependencyGraph[normalizedPath] = deps
 	}
 
 	// Update file states from patches
 	for _, patch := range patches {
+		// Normalize the target file path
+		normalizedPath := normalizePath(patch.TargetFile)
+
 		// Extract file content from diff (simplified - assumes new file creation)
 		content := extractContentFromDiff(patch.Diff)
 		checksum := ComputeFileChecksum(content)
 
 		fileState := FileState{
-			Path:         patch.TargetFile,
+			Path:         normalizedPath,
 			Checksum:     checksum,
 			GeneratedAt:  patch.AppliedAt,
-			Dependencies: dependencyGraph[patch.TargetFile],
-			Template:     false, // TODO: Detect if template-generated
+			Dependencies: dependencyGraph[patch.TargetFile], // Use original path to look up in incoming graph
+			Template:     false,                             // TODO: Detect if template-generated
 		}
 
-		ism.state.GeneratedFiles[patch.TargetFile] = fileState
+		ism.state.GeneratedFiles[normalizedPath] = fileState
 	}
 
 	// Save updated state

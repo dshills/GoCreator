@@ -139,8 +139,9 @@ func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fc
 
 	duration := time.Since(startTime)
 
-	// Update incremental state if enabled
-	if c.incremental && c.stateManager != nil && fcs != nil {
+	// Update incremental state if enabled and files were generated
+	// Skip state update when FCS is unchanged (no patches generated)
+	if c.incremental && c.stateManager != nil && fcs != nil && len(allPatches) > 0 {
 		if err := c.updateIncrementalState(fcs, allPatches, allFiles); err != nil {
 			log.Warn().Err(err).Msg("Failed to update incremental state")
 		}
@@ -183,30 +184,72 @@ func (c *llmCoder) detectAndFilterChanges(
 		return []models.GenerationTask{}, nil, nil
 	}
 
-	// Reconstruct old FCS from state (simplified - in production, store FCS or use checksums better)
-	// For now, if checksums differ, detect what changed
-	// TODO: Store old FCS in state for proper change detection
-	// detector := NewChangeDetector()
-
-	// We don't have old FCS stored, so we'll analyze based on file dependencies
-	// Build list of all files from plan
+	// Build list of all files from plan with normalized paths
 	allFiles := []string{}
 	allTasks := c.getAllTasks(plan)
 	for _, task := range allTasks {
 		if task.TargetPath != "" {
-			allFiles = append(allFiles, task.TargetPath)
+			allFiles = append(allFiles, normalizePath(task.TargetPath))
 		}
 	}
 
-	// Since we don't have old FCS, regenerate files that are new or missing from state
+	// Use fine-grained change detection if we have a previous FCS
+	if state.PreviousFCS != nil {
+		log.Info().Msg("Using fine-grained change detection with stored FCS")
+
+		detector := NewChangeDetector()
+		changes, err := detector.DetectChanges(state.PreviousFCS, newFCS)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to detect changes: %w", err)
+		}
+
+		// Use AffectedFilesCalculator to determine which files need regeneration
+		calculator := NewAffectedFilesCalculator(state.DependencyGraph)
+		affectedFiles := calculator.CalculateAffectedFiles(changes, allFiles)
+
+		// Filter tasks to only those for affected files
+		var tasksToGenerate []models.GenerationTask
+		affectedSet := make(map[string]bool)
+		for _, file := range affectedFiles {
+			affectedSet[file] = true
+		}
+
+		for _, task := range allTasks {
+			if task.Type != "generate_file" {
+				continue
+			}
+			normalizedTaskPath := normalizePath(task.TargetPath)
+			if affectedSet[normalizedTaskPath] {
+				tasksToGenerate = append(tasksToGenerate, task)
+				log.Debug().
+					Str("file", task.TargetPath).
+					Msg("File affected by FCS changes, will regenerate")
+			}
+		}
+
+		log.Info().
+			Int("total_files", len(allFiles)).
+			Int("files_to_regenerate", len(tasksToGenerate)).
+			Int("entities_changed", len(changes.AddedEntities)+len(changes.ModifiedEntities)+len(changes.DeletedEntities)).
+			Int("apis_changed", len(changes.AddedAPIContracts)+len(changes.ModifiedAPIContracts)+len(changes.DeletedAPIContracts)).
+			Msg("Fine-grained change detection completed")
+
+		return tasksToGenerate, allFiles, nil
+	}
+
+	// Fallback: No previous FCS stored (first generation or old state format)
+	// Regenerate files that are new or missing from state
+	log.Info().Msg("No previous FCS available, using simple change detection")
+
 	var tasksToGenerate []models.GenerationTask
 	for _, task := range allTasks {
 		if task.Type != "generate_file" {
 			continue
 		}
 
-		// Check if file exists in state
-		_, exists := state.GeneratedFiles[task.TargetPath]
+		// Check if file exists in state (using normalized path)
+		normalizedTaskPath := normalizePath(task.TargetPath)
+		_, exists := state.GeneratedFiles[normalizedTaskPath]
 		if !exists {
 			// New file, need to generate
 			tasksToGenerate = append(tasksToGenerate, task)
@@ -216,17 +259,16 @@ func (c *llmCoder) detectAndFilterChanges(
 		}
 	}
 
-	// If no new files, but checksum changed, we need smarter detection
-	// For now, if FCS changed and we have existing files, regenerate all (TODO: improve)
+	// If no new files but checksum changed, regenerate all (conservative approach)
 	if len(tasksToGenerate) == 0 && state.FCSChecksum != "" {
-		log.Warn().Msg("FCS changed but no new files detected, regenerating all files")
+		log.Warn().Msg("FCS changed but no new files detected, regenerating all files (no previous FCS for fine-grained detection)")
 		tasksToGenerate = allTasks
 	}
 
 	log.Info().
 		Int("total_files", len(allFiles)).
 		Int("files_to_regenerate", len(tasksToGenerate)).
-		Msg("Incremental change detection completed")
+		Msg("Simple change detection completed")
 
 	return tasksToGenerate, allFiles, nil
 }
@@ -237,11 +279,14 @@ func (c *llmCoder) updateIncrementalState(
 	patches []models.Patch,
 	_ []string, // allFiles - reserved for future use
 ) error {
-	// Build dependency graph from context filter
+	// Build dependency graph from context filter with normalized paths
 	dependencyGraph := make(map[string][]string)
 	if c.contextFilter != nil {
 		// Extract dependencies from filtered FCS data
 		for _, patch := range patches {
+			// Normalize the target file path for consistent storage
+			normalizedPath := normalizePath(patch.TargetFile)
+
 			// Use context filter to determine dependencies
 			filteredFCS := c.contextFilter.FilterForFile(patch.TargetFile, nil, fcs)
 			if filteredFCS != nil {
@@ -249,7 +294,7 @@ func (c *llmCoder) updateIncrementalState(
 				for _, entity := range filteredFCS.DataModel.Entities {
 					deps = append(deps, entity.Name)
 				}
-				dependencyGraph[patch.TargetFile] = deps
+				dependencyGraph[normalizedPath] = deps
 			}
 		}
 	}
