@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/dshills/gocreator/src/providers"
+	"github.com/dshills/gocreator/internal/providers"
 	"github.com/dshills/langgraph-go/graph/model"
 	"github.com/dshills/langgraph-go/graph/model/openai"
 )

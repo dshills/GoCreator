@@ -119,7 +119,7 @@ This will:
 
 ### Step 1: Implement the LLMProvider Interface
 
-Create a new file `src/providers/adapters/newprovider.go`:
+Create a new file `internal/providers/adapters/newprovider.go`:
 
 ```go
 package adapters
@@ -129,7 +129,7 @@ import (
     "fmt"
     "time"
 
-    "gocreator/src/providers"
+    "gocreator/internal/providers"
 )
 
 type NewProviderAdapter struct {
@@ -242,7 +242,7 @@ func classifyError(err error) providers.ErrorCode {
 
 ### Step 2: Register the Provider Type
 
-Edit `src/providers/registry.go` to add your provider:
+Edit `internal/providers/registry.go` to add your provider:
 
 ```go
 func (r *Registry) createProvider(id string, config *ProviderConfig) (LLMProvider, error) {
@@ -273,8 +273,8 @@ import (
     "testing"
     "time"
 
-    "gocreator/src/providers"
-    "gocreator/src/providers/adapters"
+    "gocreator/internal/providers"
+    "gocreator/internal/providers/adapters"
 )
 
 func TestNewProviderAdapter_Initialize(t *testing.T) {
@@ -387,7 +387,7 @@ import (
     "fmt"
     "time"
 
-    "gocreator/src/providers"
+    "gocreator/internal/providers"
 )
 
 func main() {

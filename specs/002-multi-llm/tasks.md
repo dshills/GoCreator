@@ -56,10 +56,10 @@
 
 **Purpose**: Project initialization and basic structure for multi-provider support
 
-- [x] T001 Create directory structure for providers package: src/providers/ and src/providers/adapters/
+- [x] T001 Create directory structure for providers package: internal/providers/ and internal/providers/adapters/
 - [x] T002 Create directory structure for provider tests: tests/unit/providers/, tests/integration/providers/, tests/contract/providers/
 - [x] T003 [P] Create Go module dependencies file if needed, add gopkg.in/yaml.v3 for YAML parsing
-- [x] T004 [P] Create type definitions file src/providers/types.go with enums (ProviderType, Role, TaskStatus, MetricStatus, ErrorCode)
+- [x] T004 [P] Create type definitions file internal/providers/types.go with enums (ProviderType, Role, TaskStatus, MetricStatus, ErrorCode)
 
 ---
 
@@ -69,18 +69,18 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T005 Implement RetryConfig struct and Execute method in src/providers/retry.go with exponential backoff (research.md section 5)
-- [x] T006 Implement ProviderError type with error classification in src/providers/errors.go (contracts section "Error Contracts")
-- [x] T007 Implement ConfigError type for configuration validation errors in src/providers/errors.go
-- [x] T008 [P] Create Request and Response structs in src/providers/types.go (contracts section "Request/Response Structures")
-- [x] T009 [P] Create ProviderConfig struct with validation methods in src/providers/config.go (data-model.md section 1)
-- [x] T010 [P] Create RoleAssignment struct with validation methods in src/providers/config.go (data-model.md section 2)
-- [x] T011 [P] Create MultiProviderConfig struct in src/providers/config.go (data-model.md "Configuration Object Model")
-- [x] T012 Implement YAML configuration loader with environment variable expansion in src/providers/config.go LoadConfig method
-- [x] T013 Implement configuration validation in src/providers/config.go ValidateConfig method (validates provider references, no circular fallbacks, parameter types)
-- [x] T014 Implement backward compatibility for single-provider config in src/providers/config.go (contracts section "Backward Compatibility")
-- [x] T015 [P] Create LLMProvider interface definition in src/providers/interface.go (contracts "LLMProvider Interface")
-- [x] T016 [P] Create ProviderRegistry interface definition in src/providers/interface.go (contracts "ProviderRegistry Interface")
+- [x] T005 Implement RetryConfig struct and Execute method in internal/providers/retry.go with exponential backoff (research.md section 5)
+- [x] T006 Implement ProviderError type with error classification in internal/providers/errors.go (contracts section "Error Contracts")
+- [x] T007 Implement ConfigError type for configuration validation errors in internal/providers/errors.go
+- [x] T008 [P] Create Request and Response structs in internal/providers/types.go (contracts section "Request/Response Structures")
+- [x] T009 [P] Create ProviderConfig struct with validation methods in internal/providers/config.go (data-model.md section 1)
+- [x] T010 [P] Create RoleAssignment struct with validation methods in internal/providers/config.go (data-model.md section 2)
+- [x] T011 [P] Create MultiProviderConfig struct in internal/providers/config.go (data-model.md "Configuration Object Model")
+- [x] T012 Implement YAML configuration loader with environment variable expansion in internal/providers/config.go LoadConfig method
+- [x] T013 Implement configuration validation in internal/providers/config.go ValidateConfig method (validates provider references, no circular fallbacks, parameter types)
+- [x] T014 Implement backward compatibility for single-provider config in internal/providers/config.go (contracts section "Backward Compatibility")
+- [x] T015 [P] Create LLMProvider interface definition in internal/providers/interface.go (contracts "LLMProvider Interface")
+- [x] T016 [P] Create ProviderRegistry interface definition in internal/providers/interface.go (contracts "ProviderRegistry Interface")
 
 **Checkpoint**: ✅ Foundation ready - user story implementation can now begin in parallel
 
@@ -105,19 +105,19 @@
 
 ### Implementation for User Story 1 ✅
 
-- [x] T023 [P] [US1] Implement ProviderRegistry struct with provider storage and role mappings in src/providers/registry.go
-- [x] T024 [P] [US1] Implement NewRegistry constructor with configuration initialization in src/providers/registry.go (loads config, creates providers, validates credentials)
-- [x] T025 [US1] Implement SelectProvider method with role-based routing in src/providers/registry.go (implements selection algorithm from contracts)
-- [x] T026 [US1] Implement provider fallback logic in src/providers/registry.go SelectProvider method (try primary → fallbacks → default)
-- [x] T027 [US1] Implement parameter override resolution in src/providers/registry.go (merge global + role-specific parameters per research.md section 2)
-- [x] T028 [P] [US1] Create Validator struct with parallel validation in src/providers/validator.go (implements parallel credential validation from research.md section 3)
-- [x] T029 [P] [US1] Implement ValidateAll method with timeout and error aggregation in src/providers/validator.go
-- [x] T030 [US1] Implement OpenAI adapter in src/providers/adapters/openai.go (implements LLMProvider interface with Initialize, Execute, Name, Type, Shutdown)
-- [x] T031 [US1] Implement Anthropic adapter in src/providers/adapters/anthropic.go (implements LLMProvider interface)
-- [x] T032 [US1] Implement Google adapter in src/providers/adapters/google.go (implements LLMProvider interface)
-- [x] T033 [US1] Implement adapter factory in src/providers/registry.go createProvider method (creates adapter based on ProviderType)
-- [x] T034 [US1] Add error handling and logging for configuration errors with actionable messages in src/providers/config.go
-- [x] T035 [US1] Add error handling for provider validation failures with clear failure reasons in src/providers/validator.go
+- [x] T023 [P] [US1] Implement ProviderRegistry struct with provider storage and role mappings in internal/providers/registry.go
+- [x] T024 [P] [US1] Implement NewRegistry constructor with configuration initialization in internal/providers/registry.go (loads config, creates providers, validates credentials)
+- [x] T025 [US1] Implement SelectProvider method with role-based routing in internal/providers/registry.go (implements selection algorithm from contracts)
+- [x] T026 [US1] Implement provider fallback logic in internal/providers/registry.go SelectProvider method (try primary → fallbacks → default)
+- [x] T027 [US1] Implement parameter override resolution in internal/providers/registry.go (merge global + role-specific parameters per research.md section 2)
+- [x] T028 [P] [US1] Create Validator struct with parallel validation in internal/providers/validator.go (implements parallel credential validation from research.md section 3)
+- [x] T029 [P] [US1] Implement ValidateAll method with timeout and error aggregation in internal/providers/validator.go
+- [x] T030 [US1] Implement OpenAI adapter in internal/providers/adapters/openai.go (implements LLMProvider interface with Initialize, Execute, Name, Type, Shutdown)
+- [x] T031 [US1] Implement Anthropic adapter in internal/providers/adapters/anthropic.go (implements LLMProvider interface)
+- [x] T032 [US1] Implement Google adapter in internal/providers/adapters/google.go (implements LLMProvider interface)
+- [x] T033 [US1] Implement adapter factory in internal/providers/registry.go createProvider method (creates adapter based on ProviderType)
+- [x] T034 [US1] Add error handling and logging for configuration errors with actionable messages in internal/providers/config.go
+- [x] T035 [US1] Add error handling for provider validation failures with clear failure reasons in internal/providers/validator.go
 
 **Checkpoint**: ✅ User Story 1 is fully functional - users can configure multiple providers with role assignments and verify correct provider selection
 
@@ -140,17 +140,17 @@
 
 ### Implementation for User Story 2 ⚠️ PARTIAL
 
-- [x] T040 [P] [US2] Create TaskExecutionContext struct in src/providers/types.go (data-model.md section 3)
-- [x] T041 [P] [US2] Implement task status state machine with validation in src/providers/types.go (enforce valid transitions from data-model.md)
+- [x] T040 [P] [US2] Create TaskExecutionContext struct in internal/providers/types.go (data-model.md section 3)
+- [x] T041 [P] [US2] Implement task status state machine with validation in internal/providers/types.go (enforce valid transitions from data-model.md)
 - [ ] T042 [US2] ⏸️ BLOCKED: Integrate provider registry with LangGraph-Go agents in src/langgraph/agent.go (add provider selection based on task role) - **LangGraph-Go not yet implemented**
 - [ ] T043 [US2] ⏸️ BLOCKED: Modify LangGraph-Go workflow to pass selected provider to LLM calls in src/langgraph/workflow.go - **LangGraph-Go not yet implemented**
 - [ ] T044 [US2] ⏸️ BLOCKED: Add role parameter to LLM request context in src/langgraph/workflow.go - **LangGraph-Go not yet implemented**
-- [x] T045 [US2] Implement provider execute with retry logic in provider adapters Execute methods (use RetryConfig from src/providers/retry.go)
-- [x] T046 [US2] Implement error classification for retryable vs non-retryable errors in src/providers/errors.go (per contracts "Retryable Error Codes")
-- [x] T047 [US2] Add execution logging for provider selection decisions in src/providers/registry.go SelectProvider method
+- [x] T045 [US2] Implement provider execute with retry logic in provider adapters Execute methods (use RetryConfig from internal/providers/retry.go)
+- [x] T046 [US2] Implement error classification for retryable vs non-retryable errors in internal/providers/errors.go (per contracts "Retryable Error Codes")
+- [x] T047 [US2] Add execution logging for provider selection decisions in internal/providers/registry.go SelectProvider method
 - [x] T048 [US2] Add execution logging for provider request/response in provider adapters Execute methods (log provider ID, role, timestamps - NOT credentials)
-- [x] T049 [US2] Implement thread-safe provider instance management with RWMutex in src/providers/registry.go (research.md section 6)
-- [x] T050 [US2] Implement graceful shutdown with provider cleanup in src/providers/registry.go Shutdown method
+- [x] T049 [US2] Implement thread-safe provider instance management with RWMutex in internal/providers/registry.go (research.md section 6)
+- [x] T050 [US2] Implement graceful shutdown with provider cleanup in internal/providers/registry.go Shutdown method
 
 **Checkpoint**: ⚠️ Provider infrastructure ready for workflow integration. LangGraph integration tasks (T042-T044) blocked until LangGraph-Go implementation begins.
 
@@ -173,16 +173,16 @@
 
 ### Implementation for User Story 3 ⚠️ PARTIAL
 
-- [ ] T055 [P] [US3] Create ProviderMetrics struct in src/providers/metrics.go (data-model.md section 4)
-- [ ] T056 [P] [US3] Create MetricsSummary struct with aggregation fields in src/providers/metrics.go (contracts "MetricsSummary")
-- [ ] T057 [P] [US3] Implement SQLite schema creation with indexes in src/providers/metrics.go (data-model.md "Storage Schema")
-- [ ] T058 [US3] Implement MetricsCollector struct with thread-safe recording in src/providers/metrics.go (use sync.RWMutex per research.md section 6)
-- [ ] T059 [US3] Implement RecordMetrics method with async write to SQLite in src/providers/metrics.go
-- [ ] T060 [US3] Implement GetMetrics method with SQL aggregation queries in src/providers/metrics.go (avg response time, success rate, token totals)
-- [ ] T061 [US3] Implement file-based metrics fallback (JSON Lines format) in src/providers/metrics.go
-- [ ] T062 [US3] Implement metrics migration from file to SQLite in src/providers/metrics.go
+- [ ] T055 [P] [US3] Create ProviderMetrics struct in internal/providers/metrics.go (data-model.md section 4)
+- [ ] T056 [P] [US3] Create MetricsSummary struct with aggregation fields in internal/providers/metrics.go (contracts "MetricsSummary")
+- [ ] T057 [P] [US3] Implement SQLite schema creation with indexes in internal/providers/metrics.go (data-model.md "Storage Schema")
+- [ ] T058 [US3] Implement MetricsCollector struct with thread-safe recording in internal/providers/metrics.go (use sync.RWMutex per research.md section 6)
+- [ ] T059 [US3] Implement RecordMetrics method with async write to SQLite in internal/providers/metrics.go
+- [ ] T060 [US3] Implement GetMetrics method with SQL aggregation queries in internal/providers/metrics.go (avg response time, success rate, token totals)
+- [ ] T061 [US3] Implement file-based metrics fallback (JSON Lines format) in internal/providers/metrics.go
+- [ ] T062 [US3] Implement metrics migration from file to SQLite in internal/providers/metrics.go
 - [ ] T063 [US3] Integrate metrics collection into provider Execute methods (record on completion - success or failure)
-- [ ] T064 [US3] Integrate metrics collection into ProviderRegistry in src/providers/registry.go (add RecordMetrics and GetMetrics methods)
+- [ ] T064 [US3] Integrate metrics collection into ProviderRegistry in internal/providers/registry.go (add RecordMetrics and GetMetrics methods)
 - [ ] T065 [US3] ⏸️ BLOCKED: Extend GoFlow configuration to load multi-provider config in src/goflow/config.go - **GoFlow not yet implemented**
 - [ ] T066 [US3] ⏸️ BLOCKED: Integrate metrics storage with GoFlow storage layer in src/goflow/storage.go - **GoFlow not yet implemented**
 - [ ] T067 [P] [US3] ⏸️ BLOCKED: Create CLI command for metrics summary in src/cli/metrics_cmd.go (implements gocreator metrics summary with filters) - **CLI not yet implemented**
@@ -198,7 +198,7 @@
 
 **Purpose**: Improvements that affect multiple user stories and final quality checks
 
-- [ ] T071 [P] Add comprehensive GoDoc comments to all public interfaces and methods across src/providers/ package
+- [ ] T071 [P] Add comprehensive GoDoc comments to all public interfaces and methods across internal/providers/ package
 - [x] T072 [P] Create example configuration files in examples/multi-provider-config.yaml with OpenAI, Anthropic, Google setups
 - [x] T073 [P] Update CLAUDE.md with multi-provider architecture patterns (already done by update-agent-context.sh)
 - [ ] T074 Run golangci-lint on all provider code and fix any linting issues
@@ -210,7 +210,7 @@
 - [ ] T080 Test backward compatibility with existing single-provider configurations
 - [ ] T081 Verify credentials are never logged or exposed in error messages (security requirement)
 - [ ] T082 Create migration guide for users upgrading from single-provider to multi-provider configuration
-- [ ] T083 Run mcp-pr code review using OpenAI provider on all new code in src/providers/
+- [ ] T083 Run mcp-pr code review using OpenAI provider on all new code in internal/providers/
 - [ ] T084 Address all code review findings or document justifications
 - [ ] T085 Final validation: Run complete workflow with 3 providers across all 4 roles and verify all success criteria (SC-001 through SC-008)
 
@@ -278,9 +278,9 @@ Task: "Create unit test for provider selection logic in tests/unit/providers/reg
 Task: "Create unit test for credential validation in tests/unit/providers/validator_test.go"
 
 # After tests written, launch all adapter implementations together:
-Task: "Implement OpenAI adapter in src/providers/adapters/openai.go"
-Task: "Implement Anthropic adapter in src/providers/adapters/anthropic.go"
-Task: "Implement Google adapter in src/providers/adapters/google.go"
+Task: "Implement OpenAI adapter in internal/providers/adapters/openai.go"
+Task: "Implement Anthropic adapter in internal/providers/adapters/anthropic.go"
+Task: "Implement Google adapter in internal/providers/adapters/google.go"
 ```
 
 ---
