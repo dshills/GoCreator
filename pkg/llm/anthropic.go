@@ -6,30 +6,24 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/anthropic"
+	"github.com/dshills/langgraph-go/graph/model"
+	"github.com/dshills/langgraph-go/graph/model/anthropic"
 )
 
 // anthropicClient implements the Client interface for Anthropic (Claude)
 type anthropicClient struct {
 	baseClient
-	llm *anthropic.LLM
+	chatModel *anthropic.ChatModel
 }
 
 // newAnthropicClient creates a new Anthropic client
 func newAnthropicClient(config Config) (*anthropicClient, error) {
-	// Create langchaingo Anthropic LLM with options
-	llm, err := anthropic.New(
-		anthropic.WithToken(config.APIKey),
-		anthropic.WithModel(config.Model),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Anthropic client: %w", err)
-	}
+	// Create langgraph-go Anthropic ChatModel
+	chatModel := anthropic.NewChatModel(config.APIKey, config.Model)
 
 	return &anthropicClient{
 		baseClient: baseClient{config: config},
-		llm:        llm,
+		chatModel:  chatModel,
 	}, nil
 }
 
@@ -39,16 +33,18 @@ func (c *anthropicClient) Generate(ctx context.Context, prompt string) (string, 
 
 	// Execute with retry logic
 	err := c.retry(ctx, "generate", func() error {
-		// Call LLM with enforced temperature of 0.0
-		resp, err := c.llm.Call(ctx, prompt,
-			llms.WithTemperature(c.config.Temperature), // MUST be 0.0
-			llms.WithMaxTokens(c.config.MaxTokens),
-		)
+		// Create messages for the chat
+		messages := []model.Message{
+			{Role: model.RoleUser, Content: prompt},
+		}
+
+		// Call ChatModel
+		out, err := c.chatModel.Chat(ctx, messages, nil)
 		if err != nil {
 			return err
 		}
 
-		result = resp
+		result = out.Text
 		return nil
 	})
 
@@ -62,7 +58,6 @@ func (c *anthropicClient) Generate(ctx context.Context, prompt string) (string, 
 // GenerateStructured produces structured output based on a schema
 func (c *anthropicClient) GenerateStructured(ctx context.Context, prompt string, schema interface{}) (interface{}, error) {
 	// For structured output, we append schema information to the prompt
-	// and request JSON formatted response
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return nil, c.wrapError("generate_structured", fmt.Errorf("failed to marshal schema: %w", err))
@@ -79,16 +74,18 @@ Return ONLY the JSON, with no additional text or explanation.`, prompt, schemaJS
 
 	// Execute with retry logic
 	err = c.retry(ctx, "generate_structured", func() error {
-		// Call LLM with enforced temperature of 0.0
-		resp, err := c.llm.Call(ctx, structuredPrompt,
-			llms.WithTemperature(c.config.Temperature), // MUST be 0.0
-			llms.WithMaxTokens(c.config.MaxTokens),
-		)
+		// Create messages for the chat
+		messages := []model.Message{
+			{Role: model.RoleUser, Content: structuredPrompt},
+		}
+
+		// Call ChatModel
+		out, err := c.chatModel.Chat(ctx, messages, nil)
 		if err != nil {
 			return err
 		}
 
-		result = resp
+		result = out.Text
 		return nil
 	})
 
@@ -111,26 +108,24 @@ func (c *anthropicClient) Chat(ctx context.Context, messages []Message) (string,
 		return "", c.wrapError("chat", fmt.Errorf("messages cannot be empty"))
 	}
 
-	// Convert messages to langchaingo format
-	msgContents := make([]llms.MessageContent, 0, len(messages))
+	// Convert messages to langgraph-go format
+	modelMessages := make([]model.Message, 0, len(messages))
 	for _, msg := range messages {
-		var chatMsgType llms.ChatMessageType
+		var msgRole string
 		switch msg.Role {
 		case "system":
-			chatMsgType = llms.ChatMessageTypeSystem
+			msgRole = model.RoleSystem
 		case "user":
-			chatMsgType = llms.ChatMessageTypeHuman
+			msgRole = model.RoleUser
 		case "assistant":
-			chatMsgType = llms.ChatMessageTypeAI
+			msgRole = model.RoleAssistant
 		default:
 			return "", c.wrapError("chat", fmt.Errorf("invalid message role: %s", msg.Role))
 		}
 
-		msgContents = append(msgContents, llms.MessageContent{
-			Role: chatMsgType,
-			Parts: []llms.ContentPart{
-				llms.TextPart(msg.Content),
-			},
+		modelMessages = append(modelMessages, model.Message{
+			Role:    msgRole,
+			Content: msg.Content,
 		})
 	}
 
@@ -138,25 +133,13 @@ func (c *anthropicClient) Chat(ctx context.Context, messages []Message) (string,
 
 	// Execute with retry logic
 	err := c.retry(ctx, "chat", func() error {
-		// Call LLM with enforced temperature of 0.0
-		resp, err := c.llm.GenerateContent(ctx, msgContents,
-			llms.WithTemperature(c.config.Temperature), // MUST be 0.0
-			llms.WithMaxTokens(c.config.MaxTokens),
-		)
+		// Call ChatModel
+		out, err := c.chatModel.Chat(ctx, modelMessages, nil)
 		if err != nil {
 			return err
 		}
 
-		// Extract text from response
-		if len(resp.Choices) == 0 {
-			return fmt.Errorf("no response choices returned")
-		}
-
-		if resp.Choices[0].Content == "" {
-			return fmt.Errorf("empty response content")
-		}
-
-		result = resp.Choices[0].Content
+		result = out.Text
 		return nil
 	})
 

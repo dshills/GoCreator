@@ -8,7 +8,6 @@ import (
 
 	"github.com/dshills/gocreator/internal/models"
 	"github.com/dshills/gocreator/pkg/fsops"
-	"github.com/dshills/gocreator/pkg/langgraph"
 	"github.com/dshills/gocreator/pkg/llm"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -29,11 +28,9 @@ type engine struct {
 
 // EngineConfig contains configuration for the generation engine
 type EngineConfig struct {
-	LLMClient           llm.Client
-	FileOps             fsops.FileOps
-	CheckpointManager   langgraph.CheckpointManager
-	EnableCheckpointing bool
-	LogDecisions        bool
+	LLMClient    llm.Client
+	FileOps      fsops.FileOps
+	LogDecisions bool
 }
 
 // NewEngine creates a new generation engine
@@ -71,11 +68,9 @@ func NewEngine(cfg EngineConfig) (Engine, error) {
 
 	// Create generation graph
 	graph, err := NewGenerationGraph(GenerationGraphConfig{
-		Planner:             planner,
-		Coder:               coder,
-		Tester:              tester,
-		CheckpointManager:   cfg.CheckpointManager,
-		EnableCheckpointing: cfg.EnableCheckpointing,
+		Planner: planner,
+		Coder:   coder,
+		Tester:  tester,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create generation graph: %w", err)

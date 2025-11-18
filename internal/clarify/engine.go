@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/internal/models"
-	"github.com/dshills/gocreator/pkg/langgraph"
 	"github.com/dshills/gocreator/pkg/llm"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -31,42 +30,30 @@ type Engine interface {
 
 // ClarificationEngine implements the Engine interface
 type ClarificationEngine struct {
-	llmClient        llm.Client
-	analyzer         Analyzer
-	generator        QuestionGenerator
-	checkpointMgr    langgraph.CheckpointManager
-	enableCheckpoint bool
+	llmClient llm.Client
+	analyzer  Analyzer
+	generator QuestionGenerator
 }
 
 // EngineConfig configures the clarification engine
 type EngineConfig struct {
-	LLMClient        llm.Client
-	CheckpointDir    string
-	EnableCheckpoint bool
+	LLMClient llm.Client
 }
 
 // NewEngine creates a new clarification engine
 func NewEngine(config EngineConfig) (*ClarificationEngine, error) {
+	if config.LLMClient == nil {
+		return nil, fmt.Errorf("LLM client is required")
+	}
+
 	// Create analyzer and generator
 	analyzer := NewLLMAnalyzer(config.LLMClient)
 	generator := NewLLMQuestionGenerator(config.LLMClient)
 
-	// Create checkpoint manager if enabled
-	var checkpointMgr langgraph.CheckpointManager
-	if config.EnableCheckpoint && config.CheckpointDir != "" {
-		var err error
-		checkpointMgr, err = langgraph.NewFileCheckpointManager(config.CheckpointDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create checkpoint manager: %w", err)
-		}
-	}
-
 	return &ClarificationEngine{
-		llmClient:        config.LLMClient,
-		analyzer:         analyzer,
-		generator:        generator,
-		checkpointMgr:    checkpointMgr,
-		enableCheckpoint: config.EnableCheckpoint,
+		llmClient: config.LLMClient,
+		analyzer:  analyzer,
+		generator: generator,
 	}, nil
 }
 
@@ -84,41 +71,15 @@ func (e *ClarificationEngine) Clarify(
 	startTime := time.Now()
 
 	// Create clarification graph
-	clarifyGraph := NewClarificationGraph(e.analyzer, e.generator)
-
-	// Build and execute the graph
-	graph, err := clarifyGraph.BuildGraph()
+	clarifyGraph, err := NewClarificationGraph(e.analyzer, e.generator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build clarification graph: %w", err)
+		return nil, fmt.Errorf("failed to create clarification graph: %w", err)
 	}
-
-	// Add checkpointing if enabled
-	if e.enableCheckpoint && e.checkpointMgr != nil {
-		// Note: This would require modifying the graph to use checkpointing
-		// For now, we'll execute without checkpointing
-		log.Debug().Msg("Checkpointing configured but not yet integrated with graph")
-	}
-
-	// Create initial state
-	initialState := langgraph.NewMapState()
-	initialState.Set("spec", spec)
-	initialState.Set("interactive", interactive)
 
 	// Execute the graph
-	finalState, err := graph.Execute(ctx, initialState)
+	fcs, err := clarifyGraph.Execute(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("clarification workflow failed: %w", err)
-	}
-
-	// Extract results
-	fcsVal, ok := finalState.Get("fcs")
-	if !ok {
-		return nil, fmt.Errorf("FCS not found in final state")
-	}
-
-	fcs, ok := fcsVal.(*models.FinalClarifiedSpecification)
-	if !ok {
-		return nil, fmt.Errorf("invalid FCS type in final state")
 	}
 
 	duration := time.Since(startTime)

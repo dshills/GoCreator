@@ -3,264 +3,302 @@ package clarify
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/dshills/gocreator/internal/models"
-	"github.com/dshills/gocreator/pkg/langgraph"
+	"github.com/dshills/langgraph-go/graph"
+	"github.com/dshills/langgraph-go/graph/emit"
+	"github.com/dshills/langgraph-go/graph/store"
 	"github.com/rs/zerolog/log"
 )
 
+// ClarificationState represents the state of the clarification workflow
+type ClarificationState struct {
+	Spec              *models.InputSpecification
+	Ambiguities       []models.Ambiguity
+	HasAmbiguities    bool
+	Questions         []models.Question
+	Answers           map[string]models.Answer
+	FCS               *models.FinalClarifiedSpecification
+	Error             error
+	WorkflowStarted   bool
+	WorkflowCompleted bool
+}
+
+// reduceClarificationState merges state updates
+func reduceClarificationState(prev, delta ClarificationState) ClarificationState {
+	if delta.Spec != nil {
+		prev.Spec = delta.Spec
+	}
+	if delta.Ambiguities != nil {
+		prev.Ambiguities = delta.Ambiguities
+	}
+	// Always apply boolean fields unconditionally to allow setting to false
+	prev.HasAmbiguities = delta.HasAmbiguities
+	if delta.Questions != nil {
+		prev.Questions = delta.Questions
+	}
+	if delta.Answers != nil {
+		prev.Answers = delta.Answers
+	}
+	if delta.FCS != nil {
+		prev.FCS = delta.FCS
+	}
+	if delta.Error != nil {
+		prev.Error = delta.Error
+	}
+	// Always apply boolean fields unconditionally to allow setting to false
+	prev.WorkflowStarted = delta.WorkflowStarted
+	prev.WorkflowCompleted = delta.WorkflowCompleted
+
+	return prev
+}
+
 // ClarificationGraph builds and executes the clarification workflow
 type ClarificationGraph struct {
+	engine    *graph.Engine[ClarificationState]
 	analyzer  Analyzer
 	generator QuestionGenerator
 }
 
 // NewClarificationGraph creates a new clarification graph
-func NewClarificationGraph(analyzer Analyzer, generator QuestionGenerator) *ClarificationGraph {
-	return &ClarificationGraph{
+func NewClarificationGraph(analyzer Analyzer, generator QuestionGenerator) (*ClarificationGraph, error) {
+	if analyzer == nil {
+		return nil, fmt.Errorf("analyzer is required")
+	}
+	if generator == nil {
+		return nil, fmt.Errorf("generator is required")
+	}
+
+	cg := &ClarificationGraph{
 		analyzer:  analyzer,
 		generator: generator,
 	}
+
+	// Create store and emitter
+	st := store.NewMemStore[ClarificationState]()
+	emitter := emit.NewLogEmitter(os.Stdout, false)
+
+	// Create engine with options
+	engine := graph.New(
+		reduceClarificationState,
+		st,
+		emitter,
+		graph.WithMaxConcurrent(4),
+		graph.WithDefaultNodeTimeout(5*time.Minute),
+	)
+
+	// Build the workflow nodes
+	if err := cg.buildGraph(engine); err != nil {
+		return nil, fmt.Errorf("failed to build clarification graph: %w", err)
+	}
+
+	cg.engine = engine
+
+	return cg, nil
 }
 
-// BuildGraph constructs the LangGraph for clarification workflow
-func (cg *ClarificationGraph) BuildGraph() (*langgraph.Graph, error) {
-	graph := langgraph.NewGraph(
-		"clarification_workflow",
-		"start",
-		"end",
-	)
-
-	// Define nodes
-	startNode := langgraph.NewBasicNode(
-		"start",
-		cg.startNode,
-		[]string{},
-		"Initialize clarification workflow",
-	)
-
-	analyzeNode := langgraph.NewBasicNode(
-		"analyze_spec",
-		cg.analyzeSpecNode,
-		[]string{"start"},
-		"Analyze specification for ambiguities",
-	)
-
-	checkAmbiguitiesNode := langgraph.NewConditionalNode(
-		"check_ambiguities",
-		cg.checkAmbiguitiesNode,
-		[]string{"analyze_spec"},
-		"Check if ambiguities were found",
-		func(state langgraph.State) bool {
-			// Check if ambiguities exist
-			val, ok := state.Get("ambiguities")
-			if !ok {
-				return false
-			}
-			ambiguities, ok := val.([]models.Ambiguity)
-			if !ok {
-				return false
-			}
-			return len(ambiguities) > 0
-		},
-	)
-
-	generateQuestionsNode := langgraph.NewBasicNode(
-		"generate_questions",
-		cg.generateQuestionsNode,
-		[]string{"check_ambiguities"},
-		"Generate clarification questions from ambiguities",
-	)
-
-	buildFCSNode := langgraph.NewBasicNode(
-		"build_fcs",
-		cg.buildFCSNode,
-		[]string{"generate_questions"},
-		"Build Final Clarified Specification",
-	)
-
-	endNode := langgraph.NewBasicNode(
-		"end",
-		cg.endNode,
-		[]string{"build_fcs"},
-		"Complete clarification workflow",
-	)
-
-	// Add nodes to graph
-	if err := graph.AddNode(startNode); err != nil {
-		return nil, err
+// buildGraph constructs the clarification workflow nodes
+func (cg *ClarificationGraph) buildGraph(engine *graph.Engine[ClarificationState]) error {
+	// Add nodes
+	if err := engine.Add("start", graph.NodeFunc[ClarificationState](cg.startNode)); err != nil {
+		return fmt.Errorf("failed to add start node: %w", err)
 	}
-	if err := graph.AddNode(analyzeNode); err != nil {
-		return nil, err
+	if err := engine.Add("analyze_spec", graph.NodeFunc[ClarificationState](cg.analyzeSpecNode)); err != nil {
+		return fmt.Errorf("failed to add analyze_spec node: %w", err)
 	}
-	if err := graph.AddNode(checkAmbiguitiesNode); err != nil {
-		return nil, err
+	if err := engine.Add("check_ambiguities", graph.NodeFunc[ClarificationState](cg.checkAmbiguitiesNode)); err != nil {
+		return fmt.Errorf("failed to add check_ambiguities node: %w", err)
 	}
-	if err := graph.AddNode(generateQuestionsNode); err != nil {
-		return nil, err
+	if err := engine.Add("generate_questions", graph.NodeFunc[ClarificationState](cg.generateQuestionsNode)); err != nil {
+		return fmt.Errorf("failed to add generate_questions node: %w", err)
 	}
-	if err := graph.AddNode(buildFCSNode); err != nil {
-		return nil, err
+	if err := engine.Add("build_fcs", graph.NodeFunc[ClarificationState](cg.buildFCSNode)); err != nil {
+		return fmt.Errorf("failed to add build_fcs node: %w", err)
 	}
-	if err := graph.AddNode(endNode); err != nil {
-		return nil, err
+	if err := engine.Add("end", graph.NodeFunc[ClarificationState](cg.endNode)); err != nil {
+		return fmt.Errorf("failed to add end node: %w", err)
 	}
 
-	return graph, nil
+	// Set start node
+	if err := engine.StartAt("start"); err != nil {
+		return fmt.Errorf("failed to set start node: %w", err)
+	}
+
+	return nil
 }
 
-// startNode initializes the workflow state
-func (cg *ClarificationGraph) startNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
+// Execute runs the clarification workflow
+func (cg *ClarificationGraph) Execute(ctx context.Context, spec *models.InputSpecification) (*models.FinalClarifiedSpecification, error) {
+	// Validate spec is not nil
+	if spec == nil {
+		return nil, fmt.Errorf("input specification is required")
+	}
+
+	// Create initial state
+	initialState := ClarificationState{
+		Spec:    spec,
+		Answers: make(map[string]models.Answer),
+	}
+
+	log.Info().
+		Str("spec_id", spec.ID).
+		Msg("Starting clarification workflow execution")
+
+	// Execute the graph
+	executionID := fmt.Sprintf("clarify-%s", spec.ID)
+	finalState, err := cg.engine.Run(ctx, executionID, initialState)
+	if err != nil {
+		return nil, fmt.Errorf("clarification workflow failed: %w", err)
+	}
+
+	// Check for errors in final state
+	if finalState.Error != nil {
+		return nil, finalState.Error
+	}
+
+	// Return the FCS
+	if finalState.FCS == nil {
+		return nil, fmt.Errorf("FCS not generated")
+	}
+
+	log.Info().
+		Str("fcs_id", finalState.FCS.ID).
+		Msg("Clarification workflow completed successfully")
+
+	return finalState.FCS, nil
+}
+
+// Node implementations
+
+func (cg *ClarificationGraph) startNode(_ context.Context, s ClarificationState) graph.NodeResult[ClarificationState] {
 	log.Info().Msg("Starting clarification workflow")
 
-	// Validate that spec exists in state
-	_, ok := state.Get("spec")
-	if !ok {
-		return nil, fmt.Errorf("input specification not found in state")
+	// Validate that spec exists
+	if s.Spec == nil {
+		return graph.NodeResult[ClarificationState]{
+			Delta: ClarificationState{
+				Error: fmt.Errorf("input specification not found in state"),
+			},
+			Route: graph.Stop(),
+		}
 	}
 
-	// Initialize workflow metadata
-	state.Set("workflow_started", true)
-
-	return state, nil
+	return graph.NodeResult[ClarificationState]{
+		Delta: ClarificationState{
+			WorkflowStarted: true,
+		},
+		Route: graph.Goto("analyze_spec"),
+	}
 }
 
-// analyzeSpecNode analyzes the specification for ambiguities
-func (cg *ClarificationGraph) analyzeSpecNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) analyzeSpecNode(ctx context.Context, s ClarificationState) graph.NodeResult[ClarificationState] {
 	log.Info().Msg("Analyzing specification for ambiguities")
 
-	// Get spec from state
-	specVal, ok := state.Get("spec")
-	if !ok {
-		return nil, fmt.Errorf("input specification not found in state")
-	}
-
-	spec, ok := specVal.(*models.InputSpecification)
-	if !ok {
-		return nil, fmt.Errorf("invalid spec type in state")
-	}
-
 	// Analyze for ambiguities
-	ambiguities, err := cg.analyzer.Analyze(ctx, spec)
+	ambiguities, err := cg.analyzer.Analyze(ctx, s.Spec)
 	if err != nil {
-		return nil, fmt.Errorf("analysis failed: %w", err)
+		return graph.NodeResult[ClarificationState]{
+			Delta: ClarificationState{
+				Error: fmt.Errorf("analysis failed: %w", err),
+			},
+			Route: graph.Stop(),
+		}
 	}
-
-	// Store ambiguities in state
-	state.Set("ambiguities", ambiguities)
-	state.Set("ambiguity_count", len(ambiguities))
 
 	log.Info().
 		Int("ambiguities_found", len(ambiguities)).
 		Msg("Specification analysis completed")
 
-	return state, nil
+	return graph.NodeResult[ClarificationState]{
+		Delta: ClarificationState{
+			Ambiguities: ambiguities,
+		},
+		Route: graph.Goto("check_ambiguities"),
+	}
 }
 
-// checkAmbiguitiesNode checks if ambiguities were found
-func (cg *ClarificationGraph) checkAmbiguitiesNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
-	val, ok := state.Get("ambiguities")
-	if !ok {
-		state.Set("has_ambiguities", false)
-		return state, nil
-	}
-
-	ambiguities, ok := val.([]models.Ambiguity)
-	if !ok {
-		state.Set("has_ambiguities", false)
-		return state, nil
-	}
-
-	hasAmbiguities := len(ambiguities) > 0
-	state.Set("has_ambiguities", hasAmbiguities)
+func (cg *ClarificationGraph) checkAmbiguitiesNode(_ context.Context, s ClarificationState) graph.NodeResult[ClarificationState] {
+	hasAmbiguities := len(s.Ambiguities) > 0
 
 	if !hasAmbiguities {
 		log.Info().Msg("No ambiguities found - specification is clear")
-	} else {
-		log.Info().
-			Int("count", len(ambiguities)).
-			Msg("Ambiguities detected - questions will be generated")
+
+		// Skip question generation and go directly to building FCS
+		return graph.NodeResult[ClarificationState]{
+			Delta: ClarificationState{
+				HasAmbiguities: false,
+			},
+			Route: graph.Goto("build_fcs"),
+		}
 	}
 
-	return state, nil
+	log.Info().
+		Int("count", len(s.Ambiguities)).
+		Msg("Ambiguities detected - questions will be generated")
+
+	return graph.NodeResult[ClarificationState]{
+		Delta: ClarificationState{
+			HasAmbiguities: true,
+		},
+		Route: graph.Goto("generate_questions"),
+	}
 }
 
-// generateQuestionsNode generates clarification questions
-func (cg *ClarificationGraph) generateQuestionsNode(ctx context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) generateQuestionsNode(ctx context.Context, s ClarificationState) graph.NodeResult[ClarificationState] {
 	log.Info().Msg("Generating clarification questions")
 
-	// Get ambiguities from state
-	val, ok := state.Get("ambiguities")
-	if !ok {
-		return nil, fmt.Errorf("ambiguities not found in state")
-	}
-
-	ambiguities, ok := val.([]models.Ambiguity)
-	if !ok {
-		return nil, fmt.Errorf("invalid ambiguities type in state")
-	}
-
 	// Generate questions
-	questions, err := cg.generator.Generate(ctx, ambiguities)
+	questions, err := cg.generator.Generate(ctx, s.Ambiguities)
 	if err != nil {
-		return nil, fmt.Errorf("question generation failed: %w", err)
+		return graph.NodeResult[ClarificationState]{
+			Delta: ClarificationState{
+				Error: fmt.Errorf("question generation failed: %w", err),
+			},
+			Route: graph.Stop(),
+		}
 	}
-
-	// Store questions in state
-	state.Set("questions", questions)
-	state.Set("question_count", len(questions))
 
 	log.Info().
 		Int("questions_generated", len(questions)).
 		Msg("Clarification questions generated")
 
-	return state, nil
+	return graph.NodeResult[ClarificationState]{
+		Delta: ClarificationState{
+			Questions: questions,
+		},
+		Route: graph.Goto("build_fcs"),
+	}
 }
 
-// buildFCSNode builds the Final Clarified Specification
-func (cg *ClarificationGraph) buildFCSNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) buildFCSNode(_ context.Context, s ClarificationState) graph.NodeResult[ClarificationState] {
 	log.Info().Msg("Building Final Clarified Specification")
 
-	// Get spec from state
-	specVal, ok := state.Get("spec")
-	if !ok {
-		return nil, fmt.Errorf("input specification not found in state")
-	}
-
-	spec, ok := specVal.(*models.InputSpecification)
-	if !ok {
-		return nil, fmt.Errorf("invalid spec type in state")
-	}
-
-	// Check if we have answers
-	answersVal, hasAnswers := state.Get("answers")
-	var answers map[string]models.Answer
-	if hasAnswers {
-		answers, _ = answersVal.(map[string]models.Answer)
-	}
-
-	// Build FCS (this is a simplified version - full implementation would
-	// integrate answers into the FCS)
-	fcs := buildFCSFromSpec(spec, answers)
-
-	// Store FCS in state
-	state.Set("fcs", fcs)
-	state.Set("fcs_complete", true)
+	// Build FCS
+	fcs := buildFCSFromSpec(s.Spec, s.Answers)
 
 	log.Info().
 		Str("fcs_id", fcs.ID).
 		Msg("Final Clarified Specification built")
 
-	return state, nil
+	return graph.NodeResult[ClarificationState]{
+		Delta: ClarificationState{
+			FCS: fcs,
+		},
+		Route: graph.Goto("end"),
+	}
 }
 
-// endNode completes the workflow
-func (cg *ClarificationGraph) endNode(_ context.Context, state langgraph.State) (langgraph.State, error) {
+func (cg *ClarificationGraph) endNode(_ context.Context, _ ClarificationState) graph.NodeResult[ClarificationState] {
 	log.Info().Msg("Clarification workflow completed")
 
-	state.Set("workflow_completed", true)
-
-	return state, nil
+	return graph.NodeResult[ClarificationState]{
+		Delta: ClarificationState{
+			WorkflowCompleted: true,
+		},
+		Route: graph.Stop(),
+	}
 }
 
 // buildFCSFromSpec creates an FCS from the input spec and answers
@@ -312,25 +350,4 @@ func buildFCSFromSpec(spec *models.InputSpecification, answers map[string]models
 	fcs.Metadata.Hash = hash
 
 	return fcs
-}
-
-// Execute runs the clarification graph
-func (cg *ClarificationGraph) Execute(ctx context.Context, spec *models.InputSpecification) (langgraph.State, error) {
-	// Build the graph
-	graph, err := cg.BuildGraph()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build graph: %w", err)
-	}
-
-	// Create initial state
-	initialState := langgraph.NewMapState()
-	initialState.Set("spec", spec)
-
-	// Execute the graph
-	finalState, err := graph.Execute(ctx, initialState)
-	if err != nil {
-		return nil, fmt.Errorf("graph execution failed: %w", err)
-	}
-
-	return finalState, nil
 }

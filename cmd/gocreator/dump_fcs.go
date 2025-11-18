@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/dshills/gocreator/internal/clarify"
 	"github.com/dshills/gocreator/internal/spec"
@@ -107,13 +106,8 @@ func runDumpFCS(_ *cobra.Command, args []string) error {
 	}
 
 	// Create clarification engine
-	// Use temp directory for checkpoints since we're just dumping
-	tempDir := os.TempDir()
-	checkpointDir := filepath.Join(tempDir, ".gocreator-dump", "checkpoints")
 	engine, err := clarify.NewEngine(clarify.EngineConfig{
-		LLMClient:        llmClient,
-		CheckpointDir:    checkpointDir,
-		EnableCheckpoint: false, // No need for checkpoints when dumping
+		LLMClient: llmClient,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create clarification engine")

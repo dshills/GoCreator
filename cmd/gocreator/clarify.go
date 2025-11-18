@@ -106,11 +106,8 @@ func runClarify(_ *cobra.Command, args []string) error {
 	}
 
 	// Create clarification engine
-	checkpointDir := filepath.Join(clarifyOutput, ".gocreator", "checkpoints")
 	engine, err := clarify.NewEngine(clarify.EngineConfig{
-		LLMClient:        llmClient,
-		CheckpointDir:    checkpointDir,
-		EnableCheckpoint: true,
+		LLMClient: llmClient,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create clarification engine")

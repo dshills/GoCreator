@@ -159,11 +159,8 @@ func runClarificationPhase(specFile, batchFile string) (*models.FinalClarifiedSp
 	}
 
 	// Create clarification engine
-	checkpointDir := filepath.Join(generateOutput, ".gocreator", "checkpoints")
 	engine, err := clarify.NewEngine(clarify.EngineConfig{
-		LLMClient:        llmClient,
-		CheckpointDir:    checkpointDir,
-		EnableCheckpoint: true,
+		LLMClient: llmClient,
 	})
 	if err != nil {
 		return nil, ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create clarification engine: %w", err)}

@@ -5,30 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/dshills/langgraph-go/graph/model"
+	"github.com/dshills/langgraph-go/graph/model/openai"
 )
 
 // openaiClient implements the Client interface for OpenAI (GPT)
 type openaiClient struct {
 	baseClient
-	llm *openai.LLM
+	chatModel *openai.ChatModel
 }
 
 // newOpenAIClient creates a new OpenAI client
 func newOpenAIClient(config Config) (*openaiClient, error) {
-	// Create langchaingo OpenAI LLM with options
-	llm, err := openai.New(
-		openai.WithToken(config.APIKey),
-		openai.WithModel(config.Model),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OpenAI client: %w", err)
-	}
+	// Create langgraph-go OpenAI ChatModel
+	chatModel := openai.NewChatModel(config.APIKey, config.Model)
 
 	return &openaiClient{
 		baseClient: baseClient{config: config},
-		llm:        llm,
+		chatModel:  chatModel,
 	}, nil
 }
 
@@ -38,16 +32,18 @@ func (c *openaiClient) Generate(ctx context.Context, prompt string) (string, err
 
 	// Execute with retry logic
 	err := c.retry(ctx, "generate", func() error {
-		// Call LLM with enforced temperature of 0.0
-		resp, err := c.llm.Call(ctx, prompt,
-			llms.WithTemperature(c.config.Temperature), // MUST be 0.0
-			llms.WithMaxTokens(c.config.MaxTokens),
-		)
+		// Create messages for the chat
+		messages := []model.Message{
+			{Role: model.RoleUser, Content: prompt},
+		}
+
+		// Call ChatModel
+		out, err := c.chatModel.Chat(ctx, messages, nil)
 		if err != nil {
 			return err
 		}
 
-		result = resp
+		result = out.Text
 		return nil
 	})
 
@@ -78,17 +74,18 @@ Return ONLY the JSON, with no additional text or explanation.`, prompt, schemaJS
 
 	// Execute with retry logic
 	err = c.retry(ctx, "generate_structured", func() error {
-		// Call LLM with enforced temperature of 0.0
-		resp, err := c.llm.Call(ctx, structuredPrompt,
-			llms.WithTemperature(c.config.Temperature), // MUST be 0.0
-			llms.WithMaxTokens(c.config.MaxTokens),
-			llms.WithJSONMode(), // Enable JSON mode for OpenAI
-		)
+		// Create messages for the chat
+		messages := []model.Message{
+			{Role: model.RoleUser, Content: structuredPrompt},
+		}
+
+		// Call ChatModel
+		out, err := c.chatModel.Chat(ctx, messages, nil)
 		if err != nil {
 			return err
 		}
 
-		result = resp
+		result = out.Text
 		return nil
 	})
 
@@ -111,26 +108,24 @@ func (c *openaiClient) Chat(ctx context.Context, messages []Message) (string, er
 		return "", c.wrapError("chat", fmt.Errorf("messages cannot be empty"))
 	}
 
-	// Convert messages to langchaingo format
-	msgContents := make([]llms.MessageContent, 0, len(messages))
+	// Convert messages to langgraph-go format
+	modelMessages := make([]model.Message, 0, len(messages))
 	for _, msg := range messages {
-		var chatMsgType llms.ChatMessageType
+		var msgRole string
 		switch msg.Role {
 		case "system":
-			chatMsgType = llms.ChatMessageTypeSystem
+			msgRole = model.RoleSystem
 		case "user":
-			chatMsgType = llms.ChatMessageTypeHuman
+			msgRole = model.RoleUser
 		case "assistant":
-			chatMsgType = llms.ChatMessageTypeAI
+			msgRole = model.RoleAssistant
 		default:
 			return "", c.wrapError("chat", fmt.Errorf("invalid message role: %s", msg.Role))
 		}
 
-		msgContents = append(msgContents, llms.MessageContent{
-			Role: chatMsgType,
-			Parts: []llms.ContentPart{
-				llms.TextPart(msg.Content),
-			},
+		modelMessages = append(modelMessages, model.Message{
+			Role:    msgRole,
+			Content: msg.Content,
 		})
 	}
 
@@ -138,25 +133,13 @@ func (c *openaiClient) Chat(ctx context.Context, messages []Message) (string, er
 
 	// Execute with retry logic
 	err := c.retry(ctx, "chat", func() error {
-		// Call LLM with enforced temperature of 0.0
-		resp, err := c.llm.GenerateContent(ctx, msgContents,
-			llms.WithTemperature(c.config.Temperature), // MUST be 0.0
-			llms.WithMaxTokens(c.config.MaxTokens),
-		)
+		// Call ChatModel
+		out, err := c.chatModel.Chat(ctx, modelMessages, nil)
 		if err != nil {
 			return err
 		}
 
-		// Extract text from response
-		if len(resp.Choices) == 0 {
-			return fmt.Errorf("no response choices returned")
-		}
-
-		if resp.Choices[0].Content == "" {
-			return fmt.Errorf("empty response content")
-		}
-
-		result = resp.Choices[0].Content
+		result = out.Text
 		return nil
 	})
 

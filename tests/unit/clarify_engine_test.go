@@ -14,9 +14,7 @@ func TestNewEngine(t *testing.T) {
 	mockClient := &MockLLMClient{}
 
 	config := clarify.EngineConfig{
-		LLMClient:        mockClient,
-		CheckpointDir:    t.TempDir(),
-		EnableCheckpoint: true,
+		LLMClient: mockClient,
 	}
 
 	engine, err := clarify.NewEngine(config)
@@ -39,8 +37,7 @@ func TestEngine_AnalyzeOnly(t *testing.T) {
 	}
 
 	config := clarify.EngineConfig{
-		LLMClient:        mockClient,
-		EnableCheckpoint: false,
+		LLMClient: mockClient,
 	}
 
 	engine, err := clarify.NewEngine(config)
@@ -97,8 +94,7 @@ func TestEngine_GenerateRequest(t *testing.T) {
 	}
 
 	config := clarify.EngineConfig{
-		LLMClient:        mockClient,
-		EnableCheckpoint: false,
+		LLMClient: mockClient,
 	}
 
 	engine, err := clarify.NewEngine(config)
@@ -127,8 +123,7 @@ func TestEngine_ApplyAnswers(t *testing.T) {
 	mockClient := &MockLLMClient{}
 
 	config := clarify.EngineConfig{
-		LLMClient:        mockClient,
-		EnableCheckpoint: false,
+		LLMClient: mockClient,
 	}
 
 	engine, err := clarify.NewEngine(config)
@@ -183,8 +178,7 @@ func TestEngine_ValidateSpec(t *testing.T) {
 	mockClient := &MockLLMClient{}
 
 	config := clarify.EngineConfig{
-		LLMClient:        mockClient,
-		EnableCheckpoint: false,
+		LLMClient: mockClient,
 	}
 
 	engine, err := clarify.NewEngine(config)

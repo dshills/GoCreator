@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/src/providers"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/dshills/langgraph-go/graph/model"
+	"github.com/dshills/langgraph-go/graph/model/openai"
 )
 
 //nolint:gochecknoinits // Init function required for provider registration pattern
@@ -23,7 +23,7 @@ type OpenAIAdapter struct {
 	id          string
 	config      *providers.ProviderConfig
 	retryConfig *providers.RetryConfig
-	client      *openai.LLM
+	chatModel   *openai.ChatModel
 }
 
 // NewOpenAIAdapter creates a new OpenAI adapter
@@ -37,26 +37,16 @@ func NewOpenAIAdapter(id string, config *providers.ProviderConfig, retryConfig *
 
 // Initialize validates credentials and prepares the provider
 func (a *OpenAIAdapter) Initialize(ctx context.Context) error {
-	// Create OpenAI client
-	opts := []openai.Option{
-		openai.WithToken(a.config.APIKey),
-		openai.WithModel(a.config.Model),
+	// Create OpenAI ChatModel
+	chatModel := openai.NewChatModel(a.config.APIKey, a.config.Model)
+	a.chatModel = chatModel
+
+	// Test credentials with a simple message
+	messages := []model.Message{
+		{Role: model.RoleUser, Content: "test"},
 	}
 
-	if a.config.Endpoint != "" {
-		opts = append(opts, openai.WithBaseURL(a.config.Endpoint))
-	}
-
-	client, err := openai.New(opts...)
-	if err != nil {
-		return providers.NewProviderError(a.id, providers.ErrorCodeAuth, "failed to initialize OpenAI client", err)
-	}
-
-	a.client = client
-
-	// Test credentials with a simple completion (minimal tokens)
-	// This is a basic validation - in production, we might use a dedicated health check endpoint
-	_, err = a.client.Call(ctx, "test", llms.WithMaxTokens(1))
+	_, err := a.chatModel.Chat(ctx, messages, nil)
 	if err != nil {
 		return providers.NewProviderError(a.id, providers.ErrorCodeAuth, "credential validation failed", err)
 	}
@@ -79,14 +69,13 @@ func (a *OpenAIAdapter) Execute(ctx context.Context, req providers.Request) (pro
 	)
 
 	err := a.retryConfig.Execute(ctx, func() error {
-		// Build call options
-		opts := []llms.CallOption{
-			llms.WithMaxTokens(req.MaxTokens),
-			llms.WithTemperature(req.Temperature),
+		// Create messages for the chat
+		messages := []model.Message{
+			{Role: model.RoleUser, Content: req.Prompt},
 		}
 
 		// Execute the LLM call
-		result, err := a.client.Call(ctx, req.Prompt, opts...)
+		out, err := a.chatModel.Chat(ctx, messages, nil)
 		if err != nil {
 			// Classify error for retry logic
 			if isRetryableError(err) {
@@ -102,12 +91,10 @@ func (a *OpenAIAdapter) Execute(ctx context.Context, req providers.Request) (pro
 
 		// Build response
 		resp = providers.Response{
-			Content: result,
-			Model:   a.config.Model,
-			// Note: Token counts would need to be extracted from the actual response
-			// For now, we're using placeholder values
+			Content:        out.Text,
+			Model:          a.config.Model,
 			TokensPrompt:   estimateTokens(req.Prompt),
-			TokensResponse: estimateTokens(result),
+			TokensResponse: estimateTokens(out.Text),
 		}
 
 		return nil

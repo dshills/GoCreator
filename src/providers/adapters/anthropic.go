@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/src/providers"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/anthropic"
+	"github.com/dshills/langgraph-go/graph/model"
+	"github.com/dshills/langgraph-go/graph/model/anthropic"
 )
 
 //nolint:gochecknoinits // Init function required for provider registration pattern
@@ -23,7 +23,7 @@ type AnthropicAdapter struct {
 	id          string
 	config      *providers.ProviderConfig
 	retryConfig *providers.RetryConfig
-	client      *anthropic.LLM
+	chatModel   *anthropic.ChatModel
 }
 
 // NewAnthropicAdapter creates a new Anthropic adapter
@@ -37,21 +37,16 @@ func NewAnthropicAdapter(id string, config *providers.ProviderConfig, retryConfi
 
 // Initialize validates credentials and prepares the provider
 func (a *AnthropicAdapter) Initialize(ctx context.Context) error {
-	// Create Anthropic client
-	opts := []anthropic.Option{
-		anthropic.WithToken(a.config.APIKey),
-		anthropic.WithModel(a.config.Model),
+	// Create Anthropic ChatModel
+	chatModel := anthropic.NewChatModel(a.config.APIKey, a.config.Model)
+	a.chatModel = chatModel
+
+	// Test credentials with a simple message
+	messages := []model.Message{
+		{Role: model.RoleUser, Content: "test"},
 	}
 
-	client, err := anthropic.New(opts...)
-	if err != nil {
-		return providers.NewProviderError(a.id, providers.ErrorCodeAuth, "failed to initialize Anthropic client", err)
-	}
-
-	a.client = client
-
-	// Test credentials with a minimal completion
-	_, err = a.client.Call(ctx, "test", llms.WithMaxTokens(1))
+	_, err := a.chatModel.Chat(ctx, messages, nil)
 	if err != nil {
 		return providers.NewProviderError(a.id, providers.ErrorCodeAuth, "credential validation failed", err)
 	}
@@ -74,14 +69,13 @@ func (a *AnthropicAdapter) Execute(ctx context.Context, req providers.Request) (
 	)
 
 	err := a.retryConfig.Execute(ctx, func() error {
-		// Build call options
-		opts := []llms.CallOption{
-			llms.WithMaxTokens(req.MaxTokens),
-			llms.WithTemperature(req.Temperature),
+		// Create messages for the chat
+		messages := []model.Message{
+			{Role: model.RoleUser, Content: req.Prompt},
 		}
 
 		// Execute the LLM call
-		result, err := a.client.Call(ctx, req.Prompt, opts...)
+		out, err := a.chatModel.Chat(ctx, messages, nil)
 		if err != nil {
 			// Classify error for retry logic
 			if isRetryableError(err) {
@@ -97,10 +91,10 @@ func (a *AnthropicAdapter) Execute(ctx context.Context, req providers.Request) (
 
 		// Build response
 		resp = providers.Response{
-			Content:        result,
+			Content:        out.Text,
 			Model:          a.config.Model,
 			TokensPrompt:   estimateTokens(req.Prompt),
-			TokensResponse: estimateTokens(result),
+			TokensResponse: estimateTokens(out.Text),
 		}
 
 		return nil

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/dshills/gocreator/internal/clarify"
@@ -171,11 +170,8 @@ func runFullClarification(specFile, batchFile string) (*models.FinalClarifiedSpe
 	}
 
 	// Create clarification engine
-	checkpointDir := filepath.Join(fullOutput, ".gocreator", "checkpoints")
 	engine, err := clarify.NewEngine(clarify.EngineConfig{
-		LLMClient:        llmClient,
-		CheckpointDir:    checkpointDir,
-		EnableCheckpoint: true,
+		LLMClient: llmClient,
 	})
 	if err != nil {
 		return nil, ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create clarification engine: %w", err)}
