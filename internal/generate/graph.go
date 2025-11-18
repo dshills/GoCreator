@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/dshills/gocreator/internal/generate/templates"
 	"github.com/dshills/gocreator/internal/models"
 	"github.com/dshills/langgraph-go/graph"
 	"github.com/dshills/langgraph-go/graph/emit"
@@ -86,10 +87,12 @@ func reduceGenerationState(prev, delta GenerationState) GenerationState {
 
 // GenerationGraph creates the LangGraph-Go workflow for code generation
 type GenerationGraph struct {
-	engine  *graph.Engine[GenerationState]
-	planner Planner
-	coder   Coder
-	tester  Tester
+	engine            *graph.Engine[GenerationState]
+	planner           Planner
+	coder             Coder
+	tester            Tester
+	templateGenerator TemplateGenerator
+	eventChan         chan<- models.ProgressEvent
 }
 
 // GenerationGraphConfig contains configuration for the generation graph
@@ -97,7 +100,9 @@ type GenerationGraphConfig struct {
 	Planner             Planner
 	Coder               Coder
 	Tester              Tester
+	TemplateGenerator   TemplateGenerator
 	EnableCheckpointing bool
+	EventChan           chan<- models.ProgressEvent
 }
 
 // NewGenerationGraph creates a new generation workflow graph
@@ -111,11 +116,16 @@ func NewGenerationGraph(cfg GenerationGraphConfig) (*GenerationGraph, error) {
 	if cfg.Tester == nil {
 		return nil, fmt.Errorf("tester is required")
 	}
+	if cfg.TemplateGenerator == nil {
+		return nil, fmt.Errorf("template generator is required")
+	}
 
 	gg := &GenerationGraph{
-		planner: cfg.Planner,
-		coder:   cfg.Coder,
-		tester:  cfg.Tester,
+		planner:           cfg.Planner,
+		coder:             cfg.Coder,
+		tester:            cfg.Tester,
+		templateGenerator: cfg.TemplateGenerator,
+		eventChan:         cfg.EventChan,
 	}
 
 	// Create store and emitter
@@ -270,8 +280,13 @@ func (gg *GenerationGraph) startNode(_ context.Context, _ GenerationState) graph
 func (gg *GenerationGraph) analyzeFCSNode(_ context.Context, s GenerationState) graph.NodeResult[GenerationState] {
 	log.Debug().Msg("Analyzing FCS")
 
+	// Emit phase started event
+	gg.emitEvent(models.NewPhaseStartedEvent("analyze_fcs", "Validating specification"))
+	phaseStart := time.Now()
+
 	// Validate FCS
 	if s.FCS == nil {
+		gg.emitEvent(models.NewErrorEvent("analyze_fcs", "FCS not found in state", ""))
 		return graph.NodeResult[GenerationState]{
 			Delta: GenerationState{
 				Error: fmt.Errorf("FCS not found in state"),
@@ -281,6 +296,7 @@ func (gg *GenerationGraph) analyzeFCSNode(_ context.Context, s GenerationState) 
 	}
 
 	if err := s.FCS.Validate(); err != nil {
+		gg.emitEvent(models.NewErrorEvent("analyze_fcs", fmt.Sprintf("FCS validation failed: %v", err), ""))
 		return graph.NodeResult[GenerationState]{
 			Delta: GenerationState{
 				Error: fmt.Errorf("FCS validation failed: %w", err),
@@ -294,6 +310,9 @@ func (gg *GenerationGraph) analyzeFCSNode(_ context.Context, s GenerationState) 
 		Int("packages", len(s.FCS.Architecture.Packages)).
 		Msg("FCS validated successfully")
 
+	// Emit phase completed event
+	gg.emitEvent(models.NewPhaseCompletedEvent("analyze_fcs", time.Since(phaseStart), 0))
+
 	return graph.NodeResult[GenerationState]{
 		Delta: GenerationState{
 			CurrentPhase:    "analyze_fcs",
@@ -306,9 +325,14 @@ func (gg *GenerationGraph) analyzeFCSNode(_ context.Context, s GenerationState) 
 func (gg *GenerationGraph) createPlanNode(ctx context.Context, s GenerationState) graph.NodeResult[GenerationState] {
 	log.Debug().Msg("Creating generation plan")
 
+	// Emit phase started event
+	gg.emitEvent(models.NewPhaseStartedEvent("create_plan", "Analyzing architecture and creating generation plan"))
+	phaseStart := time.Now()
+
 	// Create generation plan using planner
 	plan, err := gg.planner.Plan(ctx, s.FCS)
 	if err != nil {
+		gg.emitEvent(models.NewErrorEvent("create_plan", fmt.Sprintf("Failed to create plan: %v", err), ""))
 		return graph.NodeResult[GenerationState]{
 			Delta: GenerationState{
 				Error: fmt.Errorf("failed to create plan: %w", err),
@@ -321,6 +345,9 @@ func (gg *GenerationGraph) createPlanNode(ctx context.Context, s GenerationState
 		Str("plan_id", plan.ID).
 		Int("phases", len(plan.Phases)).
 		Msg("Generation plan created")
+
+	// Emit phase completed event
+	gg.emitEvent(models.NewPhaseCompletedEvent("create_plan", time.Since(phaseStart), 0))
 
 	// Extract package list
 	packageList := make([]string, len(s.FCS.Architecture.Packages))
@@ -346,12 +373,17 @@ func (gg *GenerationGraph) generatePackagesNode(ctx context.Context, s Generatio
 		Int("completed_phases", len(s.CompletedPhases)).
 		Msg("Generating source code packages")
 
+	// Emit phase started event
+	gg.emitEvent(models.NewPhaseStartedEvent("generate_packages", "Generating Go source code files"))
+	phaseStart := time.Now()
+
 	// Validate plan exists
 	if s.Plan == nil {
 		log.Error().
 			Str("current_phase", s.CurrentPhase).
 			Strs("completed_phases", s.CompletedPhases).
 			Msg("Plan is nil in generatePackagesNode - state was not properly accumulated")
+		gg.emitEvent(models.NewErrorEvent("generate_packages", "Generation plan not found in state", ""))
 		return graph.NodeResult[GenerationState]{
 			Delta: GenerationState{
 				Error: fmt.Errorf("generation plan not found in state"),
@@ -361,8 +393,9 @@ func (gg *GenerationGraph) generatePackagesNode(ctx context.Context, s Generatio
 	}
 
 	// Generate code using coder
-	patches, err := gg.coder.Generate(ctx, s.Plan)
+	patches, err := gg.coder.Generate(ctx, s.Plan, s.FCS)
 	if err != nil {
+		gg.emitEvent(models.NewErrorEvent("generate_packages", fmt.Sprintf("Failed to generate code: %v", err), ""))
 		return graph.NodeResult[GenerationState]{
 			Delta: GenerationState{
 				Error: fmt.Errorf("failed to generate code: %w", err),
@@ -374,6 +407,9 @@ func (gg *GenerationGraph) generatePackagesNode(ctx context.Context, s Generatio
 	log.Debug().
 		Int("patches", len(patches)).
 		Msg("Code generation completed")
+
+	// Emit phase completed event
+	gg.emitEvent(models.NewPhaseCompletedEvent("generate_packages", time.Since(phaseStart), len(patches)))
 
 	return graph.NodeResult[GenerationState]{
 		Delta: GenerationState{
@@ -420,17 +456,69 @@ func (gg *GenerationGraph) generateTestsNode(ctx context.Context, s GenerationSt
 	}
 }
 
-func (gg *GenerationGraph) generateConfigNode(_ context.Context, _ GenerationState) graph.NodeResult[GenerationState] {
+func (gg *GenerationGraph) generateConfigNode(ctx context.Context, s GenerationState) graph.NodeResult[GenerationState] {
 	log.Debug().Msg("Generating configuration files")
 
-	// For now, config generation is handled in the code generation phase
-	// This node is a placeholder for future config file generation
+	var configPatches []models.Patch
 
-	log.Debug().Msg("Configuration generation completed")
+	// Validate plan and FCS exist
+	if s.Plan == nil || s.FCS == nil {
+		log.Warn().Msg("Plan or FCS not found, skipping config generation")
+		configPatches = []models.Patch{}
+	} else {
+		// Extract template data from FCS
+		templateData := templates.ExtractTemplateData(s.FCS)
+
+		// Generate boilerplate files using templates
+		boilerplateFiles := []string{"go.mod", ".gitignore", "Dockerfile", "Makefile", "README.md"}
+
+		for _, fileName := range boilerplateFiles {
+			// Check if this file is in the plan
+			shouldGenerate := false
+			for _, file := range s.Plan.FileTree.Files {
+				if file.Path == fileName ||
+					(len(file.Path) > len(fileName) && file.Path[len(file.Path)-len(fileName):] == fileName) {
+					shouldGenerate = true
+					break
+				}
+			}
+
+			if !shouldGenerate {
+				continue
+			}
+
+			content, err := gg.templateGenerator.GenerateBoilerplate(ctx, fileName, templateData)
+			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("file", fileName).
+					Msg("Failed to generate boilerplate file")
+				continue
+			}
+
+			// Create patch for this file
+			patch := models.Patch{
+				TargetFile: fileName,
+				Diff:       content,
+				AppliedAt:  time.Now(),
+				Reversible: true,
+			}
+			configPatches = append(configPatches, patch)
+
+			log.Debug().
+				Str("file", fileName).
+				Int("size", len(content)).
+				Msg("Generated boilerplate file from template")
+		}
+	}
+
+	log.Debug().
+		Int("patches", len(configPatches)).
+		Msg("Configuration generation completed")
 
 	return graph.NodeResult[GenerationState]{
 		Delta: GenerationState{
-			ConfigPatches:   []models.Patch{},
+			ConfigPatches:   configPatches,
 			CurrentPhase:    "generate_config",
 			CompletedPhases: []string{"generate_config"},
 		},
@@ -472,5 +560,20 @@ func (gg *GenerationGraph) endNode(_ context.Context, _ GenerationState) graph.N
 			CompletedPhases: []string{"end"},
 		},
 		Route: graph.Stop(),
+	}
+}
+
+// emitEvent sends a progress event to the event channel if configured
+func (gg *GenerationGraph) emitEvent(event models.ProgressEvent) {
+	if gg.eventChan != nil {
+		select {
+		case gg.eventChan <- event:
+			// Event sent successfully
+		default:
+			// Channel full or closed, skip event
+			log.Warn().
+				Str("event_type", string(event.Type)).
+				Msg("Failed to send progress event: channel full or closed")
+		}
 	}
 }

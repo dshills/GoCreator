@@ -18,20 +18,26 @@ import (
 // Coder generates source code from generation plans
 type Coder interface {
 	// Generate creates source code files based on the generation plan
-	Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error)
+	Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error)
 
 	// GenerateFile generates a single file based on task inputs
-	GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error)
+	GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error)
 }
 
 // llmCoder implements Coder using an LLM to generate code
 type llmCoder struct {
-	client llm.Client
+	client        llm.Client
+	contextFilter *ContextFilter
+	metrics       *models.GenerationMetrics
+	stateManager  *IncrementalStateManager
+	incremental   bool
 }
 
 // CoderConfig contains configuration for creating a coder
 type CoderConfig struct {
-	LLMClient llm.Client
+	LLMClient   llm.Client
+	OutputDir   string // Required for incremental state management
+	Incremental bool   // Enable incremental regeneration
 }
 
 // NewCoder creates a new Coder instance
@@ -40,74 +46,338 @@ func NewCoder(cfg CoderConfig) (Coder, error) {
 		return nil, fmt.Errorf("LLM client is required")
 	}
 
-	return &llmCoder{
-		client: cfg.LLMClient,
-	}, nil
+	coder := &llmCoder{
+		client:      cfg.LLMClient,
+		incremental: cfg.Incremental,
+		metrics: &models.GenerationMetrics{
+			PhaseTimings:  make(map[string]time.Duration),
+			CostBreakdown: make(map[string]float64),
+		},
+	}
+
+	// Initialize state manager if incremental mode is enabled and outputDir is provided
+	if cfg.Incremental && cfg.OutputDir != "" {
+		coder.stateManager = NewIncrementalStateManager(cfg.OutputDir)
+	}
+
+	return coder, nil
+}
+
+// SetFCS sets the FCS and initializes the context filter
+func (c *llmCoder) SetFCS(fcs *models.FinalClarifiedSpecification) {
+	c.contextFilter = NewContextFilter(fcs)
+}
+
+// GetMetrics returns the generation metrics
+func (c *llmCoder) GetMetrics() *models.GenerationMetrics {
+	return c.metrics
 }
 
 // Generate creates source code files based on the generation plan
-func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error) {
 	if plan == nil {
 		return nil, fmt.Errorf("generation plan is required")
 	}
 
+	// Initialize context filter if FCS is provided
+	if fcs != nil {
+		c.SetFCS(fcs)
+	}
+
+	var tasksToGenerate []models.GenerationTask
+	var allFiles []string
+
+	// Determine which tasks need generation (incremental or full)
+	if c.incremental && c.stateManager != nil {
+		log.Info().Msg("Incremental regeneration mode enabled")
+
+		// Load previous state
+		state, err := c.stateManager.Load()
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to load incremental state, performing full generation")
+			tasksToGenerate = c.getAllTasks(plan)
+		} else {
+			// Detect changes
+			tasksToGenerate, allFiles, err = c.detectAndFilterChanges(state, plan, fcs)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to detect changes, performing full generation")
+				tasksToGenerate = c.getAllTasks(plan)
+			}
+		}
+	} else {
+		// Full generation
+		tasksToGenerate = c.getAllTasks(plan)
+	}
+
 	log.Info().
 		Str("plan_id", plan.ID).
-		Int("phases", len(plan.Phases)).
+		Int("total_tasks", len(c.getAllTasks(plan))).
+		Int("tasks_to_generate", len(tasksToGenerate)).
+		Bool("incremental", c.incremental).
 		Msg("Starting code generation")
 
 	startTime := time.Now()
-	var allPatches []models.Patch
+	allPatches := make([]models.Patch, 0, len(tasksToGenerate))
 
-	// Process each phase in order
-	for _, phase := range plan.Phases {
-		log.Debug().
-			Str("phase", phase.Name).
-			Int("tasks", len(phase.Tasks)).
-			Msg("Processing generation phase")
-
-		// Process tasks in the phase
-		for _, task := range phase.Tasks {
-			// Only generate files, skip other task types
-			if task.Type != "generate_file" {
-				log.Debug().
-					Str("task_id", task.ID).
-					Str("task_type", task.Type).
-					Msg("Skipping non-generate_file task")
-				continue
-			}
-
-			patch, err := c.GenerateFile(ctx, task, plan)
-			if err != nil {
-				return nil, fmt.Errorf("failed to generate file for task %s: %w", task.ID, err)
-			}
-
-			allPatches = append(allPatches, patch)
+	// Generate files for filtered tasks
+	for _, task := range tasksToGenerate {
+		if task.Type != "generate_file" {
+			log.Debug().
+				Str("task_id", task.ID).
+				Str("task_type", task.Type).
+				Msg("Skipping non-generate_file task")
+			continue
 		}
+
+		patch, err := c.GenerateFile(ctx, task, plan, fcs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate file for task %s: %w", task.ID, err)
+		}
+
+		allPatches = append(allPatches, patch)
 	}
 
 	duration := time.Since(startTime)
+
+	// Update incremental state if enabled and files were generated
+	// Skip state update when FCS is unchanged (no patches generated)
+	if c.incremental && c.stateManager != nil && fcs != nil && len(allPatches) > 0 {
+		if err := c.updateIncrementalState(fcs, allPatches, allFiles); err != nil {
+			log.Warn().Err(err).Msg("Failed to update incremental state")
+		}
+	}
+
+	// Collect cache metrics if client supports caching
+	if cacheableClient, ok := c.client.(llm.CacheableClient); ok {
+		cacheMetrics := cacheableClient.GetCacheMetrics()
+
+		// Update generation metrics with cache data
+		c.metrics.CachedTokens = cacheMetrics.CacheReadTokens
+		c.metrics.TokensSaved = cacheMetrics.TokensSaved()
+		c.metrics.CacheHits = int(cacheMetrics.CacheHits)
+		c.metrics.CacheMisses = int(cacheMetrics.CacheMisses)
+		c.metrics.CacheHitRate = cacheMetrics.CacheHitRate()
+		c.metrics.TotalInputTokens = cacheMetrics.InputTokens + cacheMetrics.CacheCreationTokens + cacheMetrics.CacheReadTokens
+		c.metrics.TotalOutputTokens = cacheMetrics.OutputTokens
+		c.metrics.TotalLLMCalls += int(cacheMetrics.CacheHits + cacheMetrics.CacheMisses)
+
+		log.Info().
+			Int64("cache_hits", cacheMetrics.CacheHits).
+			Int64("cache_misses", cacheMetrics.CacheMisses).
+			Float64("cache_hit_rate_pct", cacheMetrics.CacheHitRate()).
+			Int64("tokens_saved", cacheMetrics.TokensSaved()).
+			Float64("cost_savings_pct", cacheMetrics.CostSavingsPercent()).
+			Msg("Prompt cache performance")
+	}
+
 	log.Info().
 		Str("plan_id", plan.ID).
 		Int("files_generated", len(allPatches)).
 		Dur("duration", duration).
+		Float64("avg_reduction_pct", c.metrics.AvgReductionPercentage).
+		Float64("cache_hit_rate_pct", c.metrics.CacheHitRate).
 		Msg("Code generation completed")
 
 	return allPatches, nil
 }
 
+// getAllTasks extracts all tasks from all phases
+func (c *llmCoder) getAllTasks(plan *models.GenerationPlan) []models.GenerationTask {
+	var tasks []models.GenerationTask
+	for _, phase := range plan.Phases {
+		tasks = append(tasks, phase.Tasks...)
+	}
+	return tasks
+}
+
+// detectAndFilterChanges compares FCS versions and filters tasks
+func (c *llmCoder) detectAndFilterChanges(
+	state *IncrementalState,
+	plan *models.GenerationPlan,
+	newFCS *models.FinalClarifiedSpecification,
+) ([]models.GenerationTask, []string, error) {
+	// Compute new FCS checksum
+	newChecksum, err := ComputeFCSChecksum(newFCS)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to compute new FCS checksum: %w", err)
+	}
+
+	// If FCS hasn't changed, no regeneration needed
+	if state.FCSChecksum == newChecksum {
+		log.Info().Msg("FCS unchanged, skipping regeneration")
+		return []models.GenerationTask{}, nil, nil
+	}
+
+	// Build list of all files from plan with normalized paths
+	allFiles := []string{}
+	allTasks := c.getAllTasks(plan)
+	for _, task := range allTasks {
+		if task.TargetPath != "" {
+			allFiles = append(allFiles, normalizePath(task.TargetPath))
+		}
+	}
+
+	// Use fine-grained change detection if we have a previous FCS
+	if state.PreviousFCS != nil {
+		log.Info().Msg("Using fine-grained change detection with stored FCS")
+
+		detector := NewChangeDetector()
+		changes, err := detector.DetectChanges(state.PreviousFCS, newFCS)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to detect changes: %w", err)
+		}
+
+		// Use AffectedFilesCalculator to determine which files need regeneration
+		calculator := NewAffectedFilesCalculator(state.DependencyGraph)
+		affectedFiles := calculator.CalculateAffectedFiles(changes, allFiles)
+
+		// Filter tasks to only those for affected files
+		var tasksToGenerate []models.GenerationTask
+		affectedSet := make(map[string]bool)
+		for _, file := range affectedFiles {
+			affectedSet[file] = true
+		}
+
+		for _, task := range allTasks {
+			if task.Type != "generate_file" {
+				continue
+			}
+			normalizedTaskPath := normalizePath(task.TargetPath)
+			if affectedSet[normalizedTaskPath] {
+				tasksToGenerate = append(tasksToGenerate, task)
+				log.Debug().
+					Str("file", task.TargetPath).
+					Msg("File affected by FCS changes, will regenerate")
+			}
+		}
+
+		log.Info().
+			Int("total_files", len(allFiles)).
+			Int("files_to_regenerate", len(tasksToGenerate)).
+			Int("entities_changed", len(changes.AddedEntities)+len(changes.ModifiedEntities)+len(changes.DeletedEntities)).
+			Int("apis_changed", len(changes.AddedAPIContracts)+len(changes.ModifiedAPIContracts)+len(changes.DeletedAPIContracts)).
+			Msg("Fine-grained change detection completed")
+
+		return tasksToGenerate, allFiles, nil
+	}
+
+	// Fallback: No previous FCS stored (first generation or old state format)
+	// Regenerate files that are new or missing from state
+	log.Info().Msg("No previous FCS available, using simple change detection")
+
+	var tasksToGenerate []models.GenerationTask
+	for _, task := range allTasks {
+		if task.Type != "generate_file" {
+			continue
+		}
+
+		// Check if file exists in state (using normalized path)
+		normalizedTaskPath := normalizePath(task.TargetPath)
+		_, exists := state.GeneratedFiles[normalizedTaskPath]
+		if !exists {
+			// New file, need to generate
+			tasksToGenerate = append(tasksToGenerate, task)
+			log.Debug().
+				Str("file", task.TargetPath).
+				Msg("New file detected, will generate")
+		}
+	}
+
+	// If no new files but checksum changed, regenerate all (conservative approach)
+	if len(tasksToGenerate) == 0 && state.FCSChecksum != "" {
+		log.Warn().Msg("FCS changed but no new files detected, regenerating all files (no previous FCS for fine-grained detection)")
+		tasksToGenerate = allTasks
+	}
+
+	log.Info().
+		Int("total_files", len(allFiles)).
+		Int("files_to_regenerate", len(tasksToGenerate)).
+		Msg("Simple change detection completed")
+
+	return tasksToGenerate, allFiles, nil
+}
+
+// updateIncrementalState updates the state after successful generation
+func (c *llmCoder) updateIncrementalState(
+	fcs *models.FinalClarifiedSpecification,
+	patches []models.Patch,
+	_ []string, // allFiles - reserved for future use
+) error {
+	// Build dependency graph from context filter with normalized paths
+	dependencyGraph := make(map[string][]string)
+	if c.contextFilter != nil {
+		// Extract dependencies from filtered FCS data
+		for _, patch := range patches {
+			// Normalize the target file path for consistent storage
+			normalizedPath := normalizePath(patch.TargetFile)
+
+			// Use context filter to determine dependencies
+			filteredFCS := c.contextFilter.FilterForFile(patch.TargetFile, nil, fcs)
+			if filteredFCS != nil {
+				deps := []string{}
+				for _, entity := range filteredFCS.DataModel.Entities {
+					deps = append(deps, entity.Name)
+				}
+				dependencyGraph[normalizedPath] = deps
+			}
+		}
+	}
+
+	// Update state
+	return c.stateManager.UpdateState(fcs, patches, dependencyGraph)
+}
+
 // GenerateFile generates a single file based on task inputs
-func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error) {
+func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error) {
 	log.Debug().
 		Str("task_id", task.ID).
 		Str("target_path", task.TargetPath).
-		Msg("Generating file")
+		Msg("Generating file with filtered context")
 
-	// Build the prompt for code generation
-	prompt := c.buildCodeGenerationPrompt(task, plan)
+	startTime := time.Now()
 
-	// Call LLM to generate code
-	response, err := c.client.Generate(ctx, prompt)
+	// Filter FCS for this specific file
+	var filteredFCS *FilteredFCS
+	if c.contextFilter != nil {
+		filteredFCS = c.contextFilter.FilterForFile(task.TargetPath, plan, fcs)
+
+		// Track metrics
+		metric := models.ContextFilterMetrics{
+			FilePath:             task.TargetPath,
+			OriginalEntityCount:  filteredFCS.OriginalEntityCount,
+			FilteredEntityCount:  filteredFCS.FilteredEntityCount,
+			OriginalPackageCount: filteredFCS.OriginalPackageCount,
+			FilteredPackageCount: filteredFCS.FilteredPackageCount,
+			ReductionPercentage:  filteredFCS.ReductionPercentage,
+			FilterDuration:       time.Since(startTime),
+		}
+		c.metrics.AddContextFilterMetrics(metric)
+	}
+
+	// Try to use prompt caching if the client supports it (Anthropic only)
+	var response string
+	var err error
+
+	if cacheableClient, ok := c.client.(llm.CacheableClient); ok {
+		// Client supports caching - use cached prompts
+		log.Debug().
+			Str("provider", c.client.Provider()).
+			Str("task_id", task.ID).
+			Msg("Using prompt caching for code generation")
+
+		messages := c.buildCodeGenerationPromptWithCache(task, plan, filteredFCS)
+		response, err = cacheableClient.GenerateWithCache(ctx, messages)
+	} else {
+		// Client doesn't support caching - use standard generation
+		log.Debug().
+			Str("provider", c.client.Provider()).
+			Str("task_id", task.ID).
+			Msg("Client doesn't support caching, using standard generation")
+
+		prompt := c.buildCodeGenerationPrompt(task, plan, filteredFCS)
+		response, err = c.client.Generate(ctx, prompt)
+	}
+
 	if err != nil {
 		return models.Patch{}, fmt.Errorf("LLM code generation failed: %w", err)
 	}
@@ -127,23 +397,35 @@ func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask,
 		Reversible: true,
 	}
 
-	log.Debug().
+	logEvent := log.Debug().
 		Str("task_id", task.ID).
 		Str("target_path", task.TargetPath).
 		Str("checksum", checksum).
-		Int("lines", strings.Count(code, "\n")+1).
-		Msg("File generated successfully")
+		Int("lines", strings.Count(code, "\n")+1)
+
+	if filteredFCS != nil {
+		logEvent.Float64("context_reduction_pct", filteredFCS.ReductionPercentage)
+	}
+
+	logEvent.Msg("File generated successfully")
 
 	return patch, nil
 }
 
 // buildCodeGenerationPrompt constructs the LLM prompt for code generation
-func (c *llmCoder) buildCodeGenerationPrompt(task models.GenerationTask, plan *models.GenerationPlan) string {
+func (c *llmCoder) buildCodeGenerationPrompt(task models.GenerationTask, plan *models.GenerationPlan, filteredFCS *FilteredFCS) string {
 	var sb strings.Builder
 
 	sb.WriteString("You are an expert Go developer generating production-ready code.\n\n")
 	sb.WriteString("# Task\n")
 	sb.WriteString(fmt.Sprintf("Generate a Go source file for: %s\n\n", task.TargetPath))
+
+	// Include filtered FCS context if available
+	if filteredFCS != nil {
+		sb.WriteString("# Project Context (Filtered)\n\n")
+		sb.WriteString(c.contextFilter.FormatFilteredFCS(filteredFCS))
+		sb.WriteString("\n")
+	}
 
 	// Determine file type and provide specific instructions
 	fileName := filepath.Base(task.TargetPath)
@@ -281,6 +563,167 @@ func (c *llmCoder) buildCodeGenerationPrompt(task models.GenerationTask, plan *m
 	sb.WriteString("The code should be complete, correctly formatted, and ready to use.\n")
 
 	return sb.String()
+}
+
+// buildCodeGenerationPromptWithCache constructs cacheable LLM prompts for code generation
+// This method separates static (cacheable) content from dynamic (task-specific) content
+// to leverage Anthropic's prompt caching for 60-80% token savings
+func (c *llmCoder) buildCodeGenerationPromptWithCache(task models.GenerationTask, plan *models.GenerationPlan, filteredFCS *FilteredFCS) []llm.CacheableMessage {
+	builder := llm.NewPromptBuilder("5m") // 5-minute cache TTL
+
+	// CACHEABLE PART 1: Coding standards and best practices (completely static across all files)
+	var standards strings.Builder
+	standards.WriteString("You are an expert Go developer generating production-ready code.\n\n")
+	standards.WriteString("# Coding Standards\n\n")
+	standards.WriteString("1. **Go Best Practices**:\n")
+	standards.WriteString("   - Follow Go idioms and conventions\n")
+	standards.WriteString("   - Accept interfaces, return structs\n")
+	standards.WriteString("   - Use meaningful variable names\n")
+	standards.WriteString("   - Keep functions small and focused\n\n")
+	standards.WriteString("2. **Error Handling**:\n")
+	standards.WriteString("   - Return errors, don't panic\n")
+	standards.WriteString("   - Wrap errors with context using fmt.Errorf\n")
+	standards.WriteString("   - Use sentinel errors for known conditions\n\n")
+	standards.WriteString("3. **Documentation**:\n")
+	standards.WriteString("   - Add godoc comments for all exported symbols\n")
+	standards.WriteString("   - Comments should explain why, not what\n")
+	standards.WriteString("   - Keep line length under 100 characters\n\n")
+	standards.WriteString("4. **Testing**:\n")
+	standards.WriteString("   - Write testable code\n")
+	standards.WriteString("   - Use dependency injection\n")
+	standards.WriteString("   - Avoid global state\n\n")
+
+	builder.AddCacheable(standards.String())
+
+	// CACHEABLE PART 2: Filtered FCS context (stable across all files in this generation run)
+	if filteredFCS != nil {
+		var fcsContext strings.Builder
+		fcsContext.WriteString("# Project Context (Filtered)\n\n")
+		fcsContext.WriteString(c.contextFilter.FormatFilteredFCS(filteredFCS))
+		fcsContext.WriteString("\n")
+		builder.AddCacheable(fcsContext.String())
+	}
+
+	// DYNAMIC PART: Task-specific instructions (changes for each file)
+	var taskInstructions strings.Builder
+	taskInstructions.WriteString("# Task\n")
+	taskInstructions.WriteString(fmt.Sprintf("Generate a Go source file for: %s\n\n", task.TargetPath))
+
+	// Determine file type and provide specific instructions
+	fileName := filepath.Base(task.TargetPath)
+	fileType := c.determineFileType(fileName)
+
+	taskInstructions.WriteString(fmt.Sprintf("# File Type: %s\n\n", fileType))
+
+	// Get file purpose from plan
+	filePurpose := c.getFilePurpose(task.TargetPath, plan)
+	if filePurpose != "" {
+		taskInstructions.WriteString(fmt.Sprintf("# Purpose\n%s\n\n", filePurpose))
+	}
+
+	// Add context from task inputs
+	if task.Inputs != nil {
+		taskInstructions.WriteString("# Context\n")
+		if pkg, ok := task.Inputs["package"].(string); ok {
+			taskInstructions.WriteString(fmt.Sprintf("Package: %s\n", pkg))
+		}
+		if entities, ok := task.Inputs["entities"].([]interface{}); ok {
+			taskInstructions.WriteString("Entities: ")
+			for i, e := range entities {
+				if i > 0 {
+					taskInstructions.WriteString(", ")
+				}
+				taskInstructions.WriteString(fmt.Sprintf("%v", e))
+			}
+			taskInstructions.WriteString("\n")
+		}
+		if deps, ok := task.Inputs["dependencies"].([]interface{}); ok {
+			taskInstructions.WriteString("Dependencies: ")
+			for i, d := range deps {
+				if i > 0 {
+					taskInstructions.WriteString(", ")
+				}
+				taskInstructions.WriteString(fmt.Sprintf("%v", d))
+			}
+			taskInstructions.WriteString("\n")
+		}
+		taskInstructions.WriteString("\n")
+	}
+
+	// Type-specific instructions
+	taskInstructions.WriteString("# Requirements\n\n")
+
+	switch fileType {
+	case "go.mod":
+		taskInstructions.WriteString("Generate a go.mod file with:\n")
+		taskInstructions.WriteString("- Correct module path\n")
+		taskInstructions.WriteString("- Go version from build config\n")
+		taskInstructions.WriteString("- Required dependencies with versions\n")
+		taskInstructions.WriteString("- Proper formatting\n\n")
+
+	case "main.go":
+		taskInstructions.WriteString("Generate a main.go file with:\n")
+		taskInstructions.WriteString("- package main declaration\n")
+		taskInstructions.WriteString("- Proper imports\n")
+		taskInstructions.WriteString("- main() function with initialization\n")
+		taskInstructions.WriteString("- Error handling and logging\n")
+		taskInstructions.WriteString("- Graceful shutdown handling\n\n")
+
+	case "model":
+		taskInstructions.WriteString("Generate a model/entity file with:\n")
+		taskInstructions.WriteString("- Proper package declaration\n")
+		taskInstructions.WriteString("- Struct definitions with JSON tags\n")
+		taskInstructions.WriteString("- Validation methods\n")
+		taskInstructions.WriteString("- Constructor functions\n")
+		taskInstructions.WriteString("- Godoc comments for all exported types and functions\n\n")
+
+	case "repository":
+		taskInstructions.WriteString("Generate a repository file with:\n")
+		taskInstructions.WriteString("- Interface definition for repository contract\n")
+		taskInstructions.WriteString("- Concrete implementation struct\n")
+		taskInstructions.WriteString("- Constructor function\n")
+		taskInstructions.WriteString("- All CRUD methods with proper error handling\n")
+		taskInstructions.WriteString("- Context support for cancellation\n\n")
+
+	case "service":
+		taskInstructions.WriteString("Generate a service file with:\n")
+		taskInstructions.WriteString("- Service interface definition\n")
+		taskInstructions.WriteString("- Service struct with dependencies\n")
+		taskInstructions.WriteString("- Constructor with dependency injection\n")
+		taskInstructions.WriteString("- Business logic methods\n")
+		taskInstructions.WriteString("- Proper error handling and logging\n\n")
+
+	case "handler":
+		taskInstructions.WriteString("Generate an HTTP handler file with:\n")
+		taskInstructions.WriteString("- Handler struct with service dependencies\n")
+		taskInstructions.WriteString("- HTTP handler functions\n")
+		taskInstructions.WriteString("- Request validation\n")
+		taskInstructions.WriteString("- Proper HTTP status codes\n")
+		taskInstructions.WriteString("- JSON encoding/decoding\n\n")
+
+	case "test":
+		taskInstructions.WriteString("Generate a test file with:\n")
+		taskInstructions.WriteString("- Table-driven tests using testing package\n")
+		taskInstructions.WriteString("- Test setup and teardown\n")
+		taskInstructions.WriteString("- Mocks for dependencies\n")
+		taskInstructions.WriteString("- Comprehensive test cases including edge cases\n")
+		taskInstructions.WriteString("- Proper assertions\n\n")
+
+	default:
+		taskInstructions.WriteString("Generate a well-structured Go file with:\n")
+		taskInstructions.WriteString("- Proper package declaration\n")
+		taskInstructions.WriteString("- Clear, idiomatic Go code\n")
+		taskInstructions.WriteString("- Proper error handling\n")
+		taskInstructions.WriteString("- Comprehensive documentation\n\n")
+	}
+
+	taskInstructions.WriteString("# Output Format\n\n")
+	taskInstructions.WriteString("Return ONLY the Go source code, no additional explanation or markdown.\n")
+	taskInstructions.WriteString("The code should be complete, correctly formatted, and ready to use.\n")
+
+	builder.AddDynamic(taskInstructions.String())
+
+	return builder.Build()
 }
 
 // determineFileType determines the type of file being generated

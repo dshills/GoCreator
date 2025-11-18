@@ -32,14 +32,14 @@ func newMockConcurrentCoder() *mockConcurrentCoder {
 	}
 }
 
-func (m *mockConcurrentCoder) Generate(_ context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+func (m *mockConcurrentCoder) Generate(_ context.Context, plan *models.GenerationPlan, _ *models.FinalClarifiedSpecification) ([]models.Patch, error) {
 	var patches []models.Patch
 
 	// Simulate processing all tasks
 	for _, phase := range plan.Phases {
 		for _, task := range phase.Tasks {
 			if task.Type == "generate_file" {
-				patch, err := m.GenerateFile(context.Background(), task, plan)
+				patch, err := m.GenerateFile(context.Background(), task, plan, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -51,7 +51,7 @@ func (m *mockConcurrentCoder) Generate(_ context.Context, plan *models.Generatio
 	return patches, nil
 }
 
-func (m *mockConcurrentCoder) GenerateFile(_ context.Context, task models.GenerationTask, _ *models.GenerationPlan) (models.Patch, error) {
+func (m *mockConcurrentCoder) GenerateFile(_ context.Context, task models.GenerationTask, _ *models.GenerationPlan, _ *models.FinalClarifiedSpecification) (models.Patch, error) {
 	atomic.AddInt64(&m.generateFileCount, 1)
 
 	// Simulate work
@@ -397,7 +397,7 @@ func generateFilesParallel(ctx context.Context, coder generate.Coder, plan *mode
 				task := task // Capture for goroutine
 
 				g.Go(func() error {
-					patch, err := coder.GenerateFile(gCtx, task, plan)
+					patch, err := coder.GenerateFile(gCtx, task, plan, nil)
 					if err != nil {
 						return err
 					}
@@ -428,11 +428,11 @@ type concurrencyTrackingCoder struct {
 	maxWorkers    int
 }
 
-func (c *concurrencyTrackingCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
-	return c.coder.Generate(ctx, plan)
+func (c *concurrencyTrackingCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error) {
+	return c.coder.Generate(ctx, plan, fcs)
 }
 
-func (c *concurrencyTrackingCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error) {
+func (c *concurrencyTrackingCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error) {
 	// Increment active workers
 	active := atomic.AddInt64(c.activeWorkers, 1)
 
@@ -450,7 +450,7 @@ func (c *concurrencyTrackingCoder) GenerateFile(ctx context.Context, task models
 	}
 
 	// Call actual coder
-	patch, err := c.coder.GenerateFile(ctx, task, plan)
+	patch, err := c.coder.GenerateFile(ctx, task, plan, fcs)
 
 	// Decrement active workers
 	atomic.AddInt64(c.activeWorkers, -1)
@@ -510,7 +510,7 @@ func BenchmarkSequentialVsParallel(b *testing.B) {
 			for _, phase := range plan.Phases {
 				for _, task := range phase.Tasks {
 					if task.Type == "generate_file" {
-						patch, err := coder.GenerateFile(ctx, task, plan)
+						patch, err := coder.GenerateFile(ctx, task, plan, nil)
 						if err != nil {
 							b.Fatal(err)
 						}

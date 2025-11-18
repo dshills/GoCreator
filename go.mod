@@ -3,7 +3,9 @@ module github.com/dshills/gocreator
 go 1.25.4
 
 require (
-	github.com/dshills/langgraph-go v0.3.0-alpha
+	github.com/anthropics/anthropic-sdk-go v1.14.0
+	github.com/dshills/langgraph-go v0.4.0-beta
+	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
 	github.com/sergi/go-diff v1.4.0
@@ -22,7 +24,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/longrunning v0.6.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/anthropics/anthropic-sdk-go v1.14.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

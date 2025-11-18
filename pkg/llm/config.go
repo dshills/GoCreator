@@ -43,18 +43,28 @@ type Config struct {
 
 	// RetryDelay specifies the initial delay between retries (exponential backoff)
 	RetryDelay time.Duration
+
+	// EnableCaching enables prompt caching (Anthropic only)
+	// When enabled, stable portions of prompts (FCS schema, guidelines) are cached
+	EnableCaching bool
+
+	// CacheTTL specifies the cache time-to-live (5m or 1h)
+	// Defaults to 5m if not specified
+	CacheTTL string
 }
 
 // DefaultConfig returns a Config with sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Provider:    ProviderAnthropic,
-		Model:       "claude-sonnet-4",
-		Temperature: 0.0, // MUST be 0.0 for deterministic output
-		Timeout:     120 * time.Second,
-		MaxTokens:   4096,
-		MaxRetries:  3,
-		RetryDelay:  time.Second,
+		Provider:      ProviderAnthropic,
+		Model:         "claude-sonnet-4",
+		Temperature:   0.0, // MUST be 0.0 for deterministic output
+		Timeout:       120 * time.Second,
+		MaxTokens:     4096,
+		MaxRetries:    3,
+		RetryDelay:    time.Second,
+		EnableCaching: true, // Enable caching by default for cost savings
+		CacheTTL:      "5m", // Default to 5-minute cache
 	}
 }
 
@@ -100,6 +110,14 @@ func (c Config) Validate() error {
 
 	if c.RetryDelay <= 0 {
 		return fmt.Errorf("retry delay must be positive, got: %v", c.RetryDelay)
+	}
+
+	// Validate cache TTL if caching is enabled
+	if c.EnableCaching {
+		if c.CacheTTL != "" && c.CacheTTL != "5m" && c.CacheTTL != "1h" {
+			return fmt.Errorf("cache TTL must be either '5m' or '1h', got: %s", c.CacheTTL)
+		}
+		// Note: Default CacheTTL ("5m") is set in DefaultConfig()
 	}
 
 	return nil

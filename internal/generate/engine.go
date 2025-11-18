@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dshills/gocreator/internal/generate/templates"
 	"github.com/dshills/gocreator/internal/models"
 	"github.com/dshills/gocreator/pkg/fsops"
 	"github.com/dshills/gocreator/pkg/llm"
@@ -24,6 +25,7 @@ type engine struct {
 	graph        *GenerationGraph
 	fileOps      fsops.FileOps
 	logDecisions bool
+	eventChan    chan<- models.ProgressEvent
 }
 
 // EngineConfig contains configuration for the generation engine
@@ -31,6 +33,9 @@ type EngineConfig struct {
 	LLMClient    llm.Client
 	FileOps      fsops.FileOps
 	LogDecisions bool
+	EventChan    chan<- models.ProgressEvent
+	Incremental  bool   // Enable incremental regeneration
+	OutputDir    string // Output directory (required for incremental)
 }
 
 // NewEngine creates a new generation engine
@@ -52,7 +57,9 @@ func NewEngine(cfg EngineConfig) (Engine, error) {
 
 	// Create coder
 	coder, err := NewCoder(CoderConfig{
-		LLMClient: cfg.LLMClient,
+		LLMClient:   cfg.LLMClient,
+		OutputDir:   cfg.OutputDir,
+		Incremental: cfg.Incremental,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create coder: %w", err)
@@ -66,11 +73,19 @@ func NewEngine(cfg EngineConfig) (Engine, error) {
 		return nil, fmt.Errorf("failed to create tester: %w", err)
 	}
 
+	// Create template generator
+	templateGen, err := templates.NewTemplateGenerator()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create template generator: %w", err)
+	}
+
 	// Create generation graph
 	graph, err := NewGenerationGraph(GenerationGraphConfig{
-		Planner: planner,
-		Coder:   coder,
-		Tester:  tester,
+		Planner:           planner,
+		Coder:             coder,
+		Tester:            tester,
+		TemplateGenerator: templateGen,
+		EventChan:         cfg.EventChan,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create generation graph: %w", err)
@@ -80,6 +95,7 @@ func NewEngine(cfg EngineConfig) (Engine, error) {
 		graph:        graph,
 		fileOps:      cfg.FileOps,
 		logDecisions: cfg.LogDecisions,
+		eventChan:    cfg.EventChan,
 	}, nil
 }
 
@@ -91,6 +107,9 @@ func (e *engine) Generate(ctx context.Context, fcs *models.FinalClarifiedSpecifi
 		Msg("Starting autonomous code generation")
 
 	startTime := time.Now()
+
+	// Emit start event
+	e.emitEvent(models.NewPhaseStartedEvent("initialization", "Preparing generation workflow"))
 
 	// Create output structure
 	output := &models.GenerationOutput{
@@ -195,6 +214,10 @@ func (e *engine) applyPatches(ctx context.Context, patches []models.Patch, outpu
 		Int("patches", len(patches)).
 		Msg("Applying patches to file system")
 
+	// Emit phase started event
+	e.emitEvent(models.NewPhaseStartedEvent("file_writing", fmt.Sprintf("Writing %d files to disk", len(patches))))
+	phaseStart := time.Now()
+
 	generatedFiles := make([]models.GeneratedFile, 0, len(patches))
 
 	for i, patch := range patches {
@@ -203,6 +226,10 @@ func (e *engine) applyPatches(ctx context.Context, patches []models.Patch, outpu
 			Int("total", len(patches)).
 			Str("target", patch.TargetFile).
 			Msg("Applying patch")
+
+		// Emit file generating event
+		e.emitEvent(models.NewFileGeneratingEvent(patch.TargetFile, "file_writing"))
+		fileStart := time.Now()
 
 		// Validate patch before applying
 		if err := e.fileOps.ValidatePatch(ctx, patch); err != nil {
@@ -242,12 +269,19 @@ func (e *engine) applyPatches(ctx context.Context, patches []models.Patch, outpu
 
 		generatedFiles = append(generatedFiles, generatedFile)
 
+		// Calculate lines and duration
+		lines := strings.Count(content, "\n") + 1
+		fileDuration := time.Since(fileStart)
+
+		// Emit file completed event
+		e.emitEvent(models.NewFileCompletedEvent(patch.TargetFile, "file_writing", lines, fileDuration))
+
 		// Log decision
 		if e.logDecisions {
 			e.logDecision(ctx, "file_generated", fmt.Sprintf("Generated file: %s", patch.TargetFile), map[string]interface{}{
 				"path":     patch.TargetFile,
 				"checksum": checksum,
-				"lines":    strings.Count(content, "\n") + 1,
+				"lines":    lines,
 			})
 		}
 	}
@@ -255,6 +289,10 @@ func (e *engine) applyPatches(ctx context.Context, patches []models.Patch, outpu
 	// Update output with generated files
 	output.Files = generatedFiles
 	output.Patches = patches
+
+	// Emit phase completed event
+	phaseDuration := time.Since(phaseStart)
+	e.emitEvent(models.NewPhaseCompletedEvent("file_writing", phaseDuration, len(generatedFiles)))
 
 	log.Debug().
 		Int("files", len(generatedFiles)).
@@ -293,4 +331,19 @@ func (e *engine) Resume(_ context.Context, checkpointID string) (*models.Generat
 	// This would use the graph's Resume functionality
 	// For now, return an error indicating it's not implemented
 	return nil, fmt.Errorf("checkpoint resume not yet implemented")
+}
+
+// emitEvent sends a progress event to the event channel if configured
+func (e *engine) emitEvent(event models.ProgressEvent) {
+	if e.eventChan != nil {
+		select {
+		case e.eventChan <- event:
+			// Event sent successfully
+		default:
+			// Channel full or closed, skip event
+			log.Warn().
+				Str("event_type", string(event.Type)).
+				Msg("Failed to send progress event: channel full or closed")
+		}
+	}
 }

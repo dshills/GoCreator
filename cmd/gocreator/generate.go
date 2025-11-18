@@ -8,17 +8,21 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/internal/clarify"
+	"github.com/dshills/gocreator/internal/cli"
+	"github.com/dshills/gocreator/internal/generate"
 	"github.com/dshills/gocreator/internal/models"
 	"github.com/dshills/gocreator/internal/spec"
+	"github.com/dshills/gocreator/pkg/fsops"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 var (
-	generateOutput string
-	generateResume bool
-	generateBatch  string
-	generateDryRun bool
+	generateOutput      string
+	generateResume      bool
+	generateBatch       string
+	generateDryRun      bool
+	generateIncremental bool
 )
 
 var generateCmd = &cobra.Command{
@@ -35,9 +39,10 @@ The generation phase:
 Validation is skipped (use 'full' command to include validation).
 
 Options:
-  --resume      Resume from last checkpoint if available
-  --batch       Use pre-answered questions from JSON file
-  --dry-run     Show what would be generated without writing files
+  --resume       Resume from last checkpoint if available
+  --batch        Use pre-answered questions from JSON file
+  --dry-run      Show what would be generated without writing files
+  --incremental  Enable incremental regeneration (only regenerate changed files)
 
 Example:
   # Basic generation
@@ -60,6 +65,7 @@ func setupGenerateFlags() {
 	generateCmd.Flags().BoolVar(&generateResume, "resume", false, "resume from last checkpoint if available")
 	generateCmd.Flags().StringVar(&generateBatch, "batch", "", "path to JSON file with pre-answered questions")
 	generateCmd.Flags().BoolVar(&generateDryRun, "dry-run", false, "show what would be generated without writing files")
+	generateCmd.Flags().BoolVar(&generateIncremental, "incremental", false, "enable incremental regeneration (only regenerate changed files)")
 }
 
 func runGenerate(_ *cobra.Command, args []string) error {
@@ -72,62 +78,28 @@ func runGenerate(_ *cobra.Command, args []string) error {
 		Bool("dry_run", generateDryRun).
 		Msg("Starting generation phase")
 
-	fmt.Printf("GoCreator v%s - Generation Phase\n\n", version)
-
-	startTime := time.Now()
-
-	// Phase 1: Clarification
-	fmt.Printf("[1/4] Clarification\n")
+	// Phase 1: Clarification (silent, no progress bar for now)
 	fcs, err := runClarificationPhase(specFile, generateBatch)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("  ✓ Specification analyzed (0 ambiguities)\n")
-	fmt.Printf("  ✓ FCS constructed\n\n")
 
-	// Phase 2: Planning
-	fmt.Printf("[2/4] Planning\n")
-	plan, err := runPlanningPhase(fcs)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("  ✓ Architecture planned (%d packages)\n", len(plan.Packages))
-	fmt.Printf("  ✓ File tree generated (%d files)\n\n", len(plan.Files))
-
-	// Phase 3: Code Generation
-	fmt.Printf("[3/4] Code Generation\n")
+	// Phase 2: Code Generation with Progress Tracking
 	if generateDryRun {
-		fmt.Printf("  [DRY RUN] No files will be written\n")
+		fmt.Printf("\n[DRY RUN] No files will be written\n\n")
+		return nil
 	}
 
-	if err := runCodeGeneration(plan, generateOutput, generateDryRun); err != nil {
+	if err := runGenerationWithProgress(fcs, generateOutput, generateIncremental); err != nil {
 		return err
 	}
-	fmt.Printf("  ✓ Generation complete\n\n")
 
-	// Phase 4: Finalization
-	fmt.Printf("[4/4] Finalization\n")
-	if err := runFinalization(generateOutput, generateDryRun); err != nil {
-		return err
-	}
-	fmt.Printf("  ✓ go.mod created\n")
-	fmt.Printf("  ✓ Makefile created\n")
-	fmt.Printf("  ✓ README.md created\n\n")
-
-	duration := time.Since(startTime)
-	fmt.Printf("Generation complete! [total: %.1fs]\n", duration.Seconds())
-	if !generateDryRun {
-		fmt.Printf("Output written to: %s\n\n", generateOutput)
-		fmt.Printf("Next steps:\n")
-		fmt.Printf("  cd %s\n", generateOutput)
-		fmt.Printf("  go mod tidy\n")
-		fmt.Printf("  make test\n")
-	}
-
-	log.Info().
-		Str("output", generateOutput).
-		Dur("duration", duration).
-		Msg("Generation phase completed successfully")
+	// Show next steps
+	fmt.Printf("\nOutput written to: %s\n\n", generateOutput)
+	fmt.Printf("Next steps:\n")
+	fmt.Printf("  cd %s\n", generateOutput)
+	fmt.Printf("  go mod tidy\n")
+	fmt.Printf("  make test\n\n")
 
 	return nil
 }
@@ -220,6 +192,94 @@ func runFinalization(outputDir string, dryRun bool) error {
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create metadata directory: %w", err)}
 		}
 	}
+
+	return nil
+}
+
+// runGenerationWithProgress runs the generation engine with real-time progress tracking
+func runGenerationWithProgress(fcs *models.FinalClarifiedSpecification, outputDir string, incremental bool) error {
+	// Create event channel for progress updates
+	eventChan := make(chan models.ProgressEvent, 100)
+
+	// Create progress tracker
+	progressConfig := cli.ProgressConfig{
+		Writer:         os.Stdout,
+		ShowTokens:     true,
+		ShowCost:       true,
+		ShowETA:        true,
+		UpdateInterval: 500 * time.Millisecond,
+		Quiet:          false,
+	}
+	tracker := cli.NewProgressTracker(progressConfig)
+
+	// Start progress tracking in background
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for event := range eventChan {
+			tracker.HandleEvent(event)
+		}
+	}()
+
+	// Create LLM client
+	llmClient, err := createLLMClient(cfg)
+	if err != nil {
+		return ExitError{Code: ExitCodeNetworkError, Err: fmt.Errorf("failed to create LLM client: %w", err)}
+	}
+
+	// Create file operations handler with logger
+	logDir := filepath.Join(outputDir, ".gocreator", "logs")
+	logger, err := fsops.NewFileLogger(logDir)
+	if err != nil {
+		return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create file logger: %w", err)}
+	}
+	defer logger.Close()
+
+	fileOps, err := fsops.New(fsops.Config{
+		RootDir: outputDir,
+		Logger:  logger,
+	})
+	if err != nil {
+		return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create file operations handler: %w", err)}
+	}
+
+	// Create generation engine
+	engine, err := generate.NewEngine(generate.EngineConfig{
+		LLMClient:    llmClient,
+		FileOps:      fileOps,
+		LogDecisions: true,
+		EventChan:    eventChan,
+		Incremental:  incremental,
+		OutputDir:    outputDir,
+	})
+	if err != nil {
+		return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create generation engine: %w", err)}
+	}
+
+	// Start progress tracker with total phases
+	// Phases: initialization, analyze_fcs, create_plan, generate_packages, generate_tests, generate_config, file_writing
+	tracker.Start(7)
+
+	// Run generation
+	ctx := context.Background()
+	output, err := engine.Generate(ctx, fcs, outputDir)
+
+	// Close event channel and wait for progress tracker to finish
+	close(eventChan)
+	<-done
+
+	if err != nil {
+		return ExitError{Code: ExitCodeGenerationError, Err: fmt.Errorf("code generation failed: %w", err)}
+	}
+
+	// Complete progress tracking
+	tracker.Complete()
+
+	// Log summary
+	log.Info().
+		Str("output_id", output.ID).
+		Int("files", len(output.Files)).
+		Msg("Generation completed successfully")
 
 	return nil
 }
