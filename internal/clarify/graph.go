@@ -347,7 +347,11 @@ func buildFCSFromSpec(spec *models.InputSpecification, answers map[string]models
 	}
 
 	// Compute hash
-	hash, _ := fcs.ComputeHash()
+	hash, err := fcs.ComputeHash()
+	if err != nil {
+		// Hash computation failed, but we can continue without it
+		hash = ""
+	}
 	fcs.Metadata.Hash = hash
 
 	return fcs

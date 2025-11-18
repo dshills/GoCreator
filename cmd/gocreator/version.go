@@ -41,15 +41,15 @@ Use --json flag to output version information in JSON format for scripting.`,
 		}
 
 		if versionJSONFlag {
-			outputJSON(info)
+			outputJSON(&info)
 		} else {
-			outputText(info)
+			outputText(&info)
 		}
 	},
 }
 
 // outputText prints version information in human-readable format
-func outputText(info VersionInfo) {
+func outputText(info *VersionInfo) {
 	fmt.Printf("GoCreator v%s\n", info.Version)
 	fmt.Printf("Commit:      %s\n", info.Commit)
 	fmt.Printf("Built:       %s\n", info.BuildDate)
@@ -58,7 +58,7 @@ func outputText(info VersionInfo) {
 }
 
 // outputJSON prints version information in JSON format
-func outputJSON(info VersionInfo) {
+func outputJSON(info *VersionInfo) {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(info); err != nil {

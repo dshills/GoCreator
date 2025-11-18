@@ -1,3 +1,5 @@
+// Package cli provides command-line interface utilities for GoCreator,
+// including progress tracking and display formatting.
 package cli
 
 import (
@@ -45,7 +47,6 @@ type ProgressTracker struct {
 	totalPhases     int
 	completedPhases int
 	filesCompleted  int
-	filesTotal      int
 
 	// Metrics
 	totalInputTokens  int64

@@ -140,7 +140,7 @@ func runDumpFCS(_ *cobra.Command, args []string) error {
 	// Output FCS
 	if dumpFCSOutput != "" {
 		// Write to file
-		if err := os.WriteFile(dumpFCSOutput, jsonData, 0600); err != nil {
+		if err := os.WriteFile(dumpFCSOutput, jsonData, 0o600); err != nil {
 			log.Error().Err(err).Msg("Failed to write FCS file")
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to write FCS file: %w", err)}
 		}

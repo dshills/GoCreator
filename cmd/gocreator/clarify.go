@@ -135,7 +135,7 @@ func runClarify(_ *cobra.Command, args []string) error {
 
 	// Ensure output directory exists
 	fcsDir := filepath.Join(clarifyOutput, ".gocreator")
-	if err := os.MkdirAll(fcsDir, 0750); err != nil {
+	if err := os.MkdirAll(fcsDir, 0o750); err != nil {
 		log.Error().Err(err).Msg("Failed to create output directory")
 		return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create output directory: %w", err)}
 	}
@@ -178,7 +178,7 @@ func writeFCS(fcs *models.FinalClarifiedSpecification, path string) error {
 		return fmt.Errorf("failed to marshal FCS: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write FCS file: %w", err)
 	}
 

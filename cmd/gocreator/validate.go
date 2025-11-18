@@ -234,7 +234,7 @@ func runValidate(_ *cobra.Command, args []string) error {
 			return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to marshal report: %w", err)}
 		}
 
-		if err := os.WriteFile(validateReport, data, 0600); err != nil {
+		if err := os.WriteFile(validateReport, data, 0o600); err != nil {
 			log.Error().Err(err).Msg("Failed to write report")
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to write report: %w", err)}
 		}

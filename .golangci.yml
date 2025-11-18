@@ -333,6 +333,24 @@ issues:
         - gosec
       path: src/providers/config\.go
 
+    # Progress display errors are non-critical - exclude errcheck for fmt print functions
+    - path: internal/cli/progress\.go
+      text: "Error return value.*fmt\\.F"
+      linters:
+        - errcheck
+
+    # Type assertions in progress tracking are validated by event type
+    - path: internal/cli/progress\.go
+      text: "Error return value is not checked"
+      linters:
+        - errcheck
+
+    # Large state structs required by graph node interface (langgraph-go)
+    - path: internal/clarify/graph\.go
+      text: "hugeParam.*ClarificationState"
+      linters:
+        - gocritic
+
   exclude-use-default: false
 
 severity:

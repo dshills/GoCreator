@@ -284,7 +284,7 @@ func runFullValidation(projectRoot, reportPath string) (bool, error) {
 			return allPassed, fmt.Errorf("failed to marshal report: %w", err)
 		}
 
-		if err := os.WriteFile(reportPath, data, 0600); err != nil {
+		if err := os.WriteFile(reportPath, data, 0o600); err != nil {
 			log.Error().Err(err).Msg("Failed to write report")
 			return allPassed, fmt.Errorf("failed to write report: %w", err)
 		}

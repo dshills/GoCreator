@@ -173,7 +173,7 @@ func runCodeGeneration(_ *generationPlan, outputDir string, dryRun bool) error {
 
 	if !dryRun {
 		// Create output directory
-		if err := os.MkdirAll(outputDir, 0750); err != nil {
+		if err := os.MkdirAll(outputDir, 0o750); err != nil {
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create output directory: %w", err)}
 		}
 	}
@@ -188,7 +188,7 @@ func runFinalization(outputDir string, dryRun bool) error {
 	if !dryRun {
 		// Create .gocreator directory
 		metaDir := filepath.Join(outputDir, ".gocreator")
-		if err := os.MkdirAll(metaDir, 0750); err != nil {
+		if err := os.MkdirAll(metaDir, 0o750); err != nil {
 			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to create metadata directory: %w", err)}
 		}
 	}
@@ -233,7 +233,11 @@ func runGenerationWithProgress(fcs *models.FinalClarifiedSpecification, outputDi
 	if err != nil {
 		return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to create file logger: %w", err)}
 	}
-	defer logger.Close()
+	defer func() {
+		if closeErr := logger.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close file logger")
+		}
+	}()
 
 	fileOps, err := fsops.New(fsops.Config{
 		RootDir: outputDir,
