@@ -1,6 +1,6 @@
 module github.com/dshills/gocreator
 
-go 1.24
+go 1.24.1
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.14.0
