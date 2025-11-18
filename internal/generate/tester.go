@@ -44,6 +44,10 @@ func NewTester(cfg TesterConfig) (Tester, error) {
 
 // Generate creates test files for the specified packages
 func (t *llmTester) Generate(ctx context.Context, packages []string, plan *models.GenerationPlan) ([]models.Patch, error) {
+	if plan == nil {
+		return nil, fmt.Errorf("generation plan is required")
+	}
+
 	log.Info().
 		Int("packages", len(packages)).
 		Msg("Starting test generation")

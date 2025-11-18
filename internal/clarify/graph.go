@@ -81,11 +81,12 @@ func NewClarificationGraph(analyzer Analyzer, generator QuestionGenerator) (*Cla
 	emitter := emit.NewLogEmitter(os.Stdout, false)
 
 	// Create engine with options
+	// NOTE: Using sequential execution (no WithMaxConcurrent) because concurrent execution
+	// in langgraph-go v0.3.0-alpha has a bug where deltas are not merged between nodes
 	engine := graph.New(
 		reduceClarificationState,
 		st,
 		emitter,
-		graph.WithMaxConcurrent(4),
 		graph.WithDefaultNodeTimeout(5*time.Minute),
 	)
 

@@ -123,11 +123,12 @@ func NewGenerationGraph(cfg GenerationGraphConfig) (*GenerationGraph, error) {
 	emitter := emit.NewLogEmitter(os.Stdout, false)
 
 	// Create engine with options
+	// NOTE: Using sequential execution (no WithMaxConcurrent) because concurrent execution
+	// in langgraph-go v0.3.0-alpha has a bug where deltas are not merged between nodes
 	engine := graph.New(
 		reduceGenerationState,
 		st,
 		emitter,
-		graph.WithMaxConcurrent(4),
 		graph.WithDefaultNodeTimeout(10*time.Minute),
 	)
 
@@ -194,14 +195,20 @@ func (gg *GenerationGraph) buildGraph(engine *graph.Engine[GenerationState]) err
 // Execute runs the generation workflow
 func (gg *GenerationGraph) Execute(ctx context.Context, fcs *models.FinalClarifiedSpecification, outputDir string) (*models.GenerationOutput, error) {
 	// Create initial state
+	// NOTE: All fields must be explicitly initialized for proper state tracking
 	initialState := GenerationState{
 		FCS:             fcs,
+		Plan:            nil,
+		CodePatches:     nil,
+		TestPatches:     nil,
+		ConfigPatches:   nil,
+		AllPatches:      nil,
+		Output:          nil,
+		Error:           nil,
 		OutputDir:       outputDir,
-		CodePatches:     []models.Patch{},
-		TestPatches:     []models.Patch{},
-		ConfigPatches:   []models.Patch{},
-		AllPatches:      []models.Patch{},
-		CompletedPhases: []string{},
+		PackageList:     nil,
+		CurrentPhase:    "",
+		CompletedPhases: nil,
 	}
 
 	log.Info().
@@ -333,7 +340,25 @@ func (gg *GenerationGraph) createPlanNode(ctx context.Context, s GenerationState
 }
 
 func (gg *GenerationGraph) generatePackagesNode(ctx context.Context, s GenerationState) graph.NodeResult[GenerationState] {
-	log.Debug().Msg("Generating source code packages")
+	log.Debug().
+		Bool("plan_is_nil", s.Plan == nil).
+		Str("current_phase", s.CurrentPhase).
+		Int("completed_phases", len(s.CompletedPhases)).
+		Msg("Generating source code packages")
+
+	// Validate plan exists
+	if s.Plan == nil {
+		log.Error().
+			Str("current_phase", s.CurrentPhase).
+			Strs("completed_phases", s.CompletedPhases).
+			Msg("Plan is nil in generatePackagesNode - state was not properly accumulated")
+		return graph.NodeResult[GenerationState]{
+			Delta: GenerationState{
+				Error: fmt.Errorf("generation plan not found in state"),
+			},
+			Route: graph.Stop(),
+		}
+	}
 
 	// Generate code using coder
 	patches, err := gg.coder.Generate(ctx, s.Plan)
@@ -363,14 +388,22 @@ func (gg *GenerationGraph) generatePackagesNode(ctx context.Context, s Generatio
 func (gg *GenerationGraph) generateTestsNode(ctx context.Context, s GenerationState) graph.NodeResult[GenerationState] {
 	log.Debug().Msg("Generating test files")
 
-	// Generate tests using tester
-	patches, err := gg.tester.Generate(ctx, s.PackageList, s.Plan)
-	if err != nil {
-		// Log error but don't fail - tests are important but not critical
-		log.Warn().
-			Err(err).
-			Msg("Failed to generate some test files")
+	var patches []models.Patch
+	// Validate plan exists before generating tests
+	if s.Plan == nil {
+		log.Warn().Msg("Generation plan not found, skipping test generation")
 		patches = []models.Patch{}
+	} else {
+		// Generate tests using tester
+		var err error
+		patches, err = gg.tester.Generate(ctx, s.PackageList, s.Plan)
+		if err != nil {
+			// Log error but don't fail - tests are important but not critical
+			log.Warn().
+				Err(err).
+				Msg("Failed to generate some test files")
+			patches = []models.Patch{}
+		}
 	}
 
 	log.Debug().

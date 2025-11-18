@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dshills/gocreator/src/providers"
+	_ "github.com/dshills/gocreator/src/providers/adapters" // Register provider factories
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

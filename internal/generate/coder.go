@@ -47,6 +47,10 @@ func NewCoder(cfg CoderConfig) (Coder, error) {
 
 // Generate creates source code files based on the generation plan
 func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+	if plan == nil {
+		return nil, fmt.Errorf("generation plan is required")
+	}
+
 	log.Info().
 		Str("plan_id", plan.ID).
 		Int("phases", len(plan.Phases)).

@@ -125,7 +125,13 @@ func (e *engine) Generate(ctx context.Context, fcs *models.FinalClarifiedSpecifi
 		e.logDecision(ctx, "generation_failed", "Code generation workflow failed", map[string]interface{}{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("generation workflow failed: %w", err)
+		return output, fmt.Errorf("generation workflow failed: %w", err)
+	}
+
+	// Validate workflow output
+	if workflowOutput == nil {
+		output.Status = models.OutputStatusFailed
+		return output, fmt.Errorf("workflow returned nil output")
 	}
 
 	// Get patches from workflow output

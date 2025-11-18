@@ -66,7 +66,8 @@ func NewRegistryFromConfig(config *MultiProviderConfig) (*Registry, error) {
 
 	// Validate all providers in parallel
 	validator := NewValidator(registry.providers)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Use 30-second timeout to accommodate retry logic in LLM adapters
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := validator.ValidateAll(ctx); err != nil {

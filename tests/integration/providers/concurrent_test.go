@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dshills/gocreator/src/providers"
+	_ "github.com/dshills/gocreator/src/providers/adapters" // Register provider factories
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +29,6 @@ func TestConcurrentProviderUsage_MultipleTasksParallel(t *testing.T) {
 	defer func() {
 		_ = registry.Shutdown(context.Background())
 	}()
-
-	// Note: We're testing concurrent access patterns, not actual API calls
-	// Real integration tests would require valid API keys and would skip if not present
 
 	// Define test tasks with different roles
 	tasks := []struct {
