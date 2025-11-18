@@ -131,6 +131,7 @@ linters-settings:
       - emptyStringTest  # String emptiness checks are clear as-is
       - typeAssertChain  # Type assertion chains validated by context
       - paramTypeCombine  # Parameter grouping is a stylistic preference
+      - appendAssign  # Local append creating new slice is intentional
 
   gosec:
     excludes:

@@ -86,9 +86,9 @@ func (b *baseClient) retry(ctx context.Context, operation string, fn func() erro
 
 		lastErr = err
 
-		// Check if context was cancelled
+		// Check if context was canceled
 		if ctx.Err() != nil {
-			return fmt.Errorf("%s cancelled: %w", operation, ctx.Err())
+			return fmt.Errorf("%s canceled: %w", operation, ctx.Err())
 		}
 
 		// Don't retry if this was the last attempt
@@ -106,7 +106,7 @@ func (b *baseClient) retry(ctx context.Context, operation string, fn func() erro
 			case <-time.After(delay):
 				delay *= 2 // Exponential backoff
 			case <-ctx.Done():
-				return fmt.Errorf("%s cancelled during retry: %w", operation, ctx.Err())
+				return fmt.Errorf("%s canceled during retry: %w", operation, ctx.Err())
 			}
 		}
 	}
