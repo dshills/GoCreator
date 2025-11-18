@@ -19,7 +19,7 @@ func TestTestValidator_AllTestsPass(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestTestValidator_TestFailures(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestTestValidator_NoCoverage(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestTestValidator_CustomCoverageProfile(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestTestValidator_CustomTimeout(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
@@ -273,7 +273,7 @@ func TestTestValidator_MultiplePackages(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
@@ -346,7 +346,7 @@ func TestTestValidator_WithAdditionalFlags(t *testing.T) {
 	// Create go.mod
 	goMod := `module testproject
 
-go 1.25
+go 1.24
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644)
 	require.NoError(t, err)
