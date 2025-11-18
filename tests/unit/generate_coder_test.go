@@ -149,7 +149,7 @@ func TestCoder_GenerateFile(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			patch, err := coder.GenerateFile(context.Background(), tt.task, tt.plan)
+			patch, err := coder.GenerateFile(context.Background(), tt.task, tt.plan, nil)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -222,7 +222,7 @@ func TestCoder_Generate(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			patches, err := coder.Generate(context.Background(), tt.plan)
+			patches, err := coder.Generate(context.Background(), tt.plan, nil)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -285,7 +285,7 @@ func TestCoder_PromptGeneration(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, err = coder.GenerateFile(context.Background(), tt.task, tt.plan)
+			_, err = coder.GenerateFile(context.Background(), tt.task, tt.plan, nil)
 			require.NoError(t, err)
 
 			// Verify prompt contains expected elements

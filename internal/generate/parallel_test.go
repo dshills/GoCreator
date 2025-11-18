@@ -29,12 +29,12 @@ func newMockParallelCoder() *mockParallelCoder {
 	}
 }
 
-func (m *mockParallelCoder) Generate(_ context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+func (m *mockParallelCoder) Generate(_ context.Context, plan *models.GenerationPlan, _ *models.FinalClarifiedSpecification) ([]models.Patch, error) {
 	var patches []models.Patch
 	for _, phase := range plan.Phases {
 		for _, task := range phase.Tasks {
 			if task.Type == "generate_file" {
-				patch, err := m.GenerateFile(context.Background(), task, plan)
+				patch, err := m.GenerateFile(context.Background(), task, plan, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -45,7 +45,7 @@ func (m *mockParallelCoder) Generate(_ context.Context, plan *models.GenerationP
 	return patches, nil
 }
 
-func (m *mockParallelCoder) GenerateFile(_ context.Context, task models.GenerationTask, _ *models.GenerationPlan) (models.Patch, error) {
+func (m *mockParallelCoder) GenerateFile(_ context.Context, task models.GenerationTask, _ *models.GenerationPlan, _ *models.FinalClarifiedSpecification) (models.Patch, error) {
 	atomic.AddInt64(&m.generateCount, 1)
 
 	// Simulate work
@@ -119,7 +119,7 @@ func TestParallelCoder_Generate(t *testing.T) {
 			plan := createSimplePlan(tt.numFiles)
 
 			startTime := time.Now()
-			patches, err := pc.Generate(ctx, plan)
+			patches, err := pc.Generate(ctx, plan, nil)
 			duration := time.Since(startTime)
 
 			require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestParallelCoder_DependencyResolution(t *testing.T) {
 			pc := NewParallelCoder(baseCoder, config)
 			plan := tt.setupPlan()
 
-			patches, err := pc.Generate(ctx, plan)
+			patches, err := pc.Generate(ctx, plan, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -244,7 +244,7 @@ func TestParallelCoder_ErrorHandling(t *testing.T) {
 			pc := NewParallelCoder(baseCoder, config)
 			plan := createSimplePlan(tt.numFiles)
 
-			patches, err := pc.Generate(ctx, plan)
+			patches, err := pc.Generate(ctx, plan, nil)
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errorMsg)
@@ -268,7 +268,7 @@ func TestParallelCoder_BoundedConcurrency(t *testing.T) {
 	plan := createSimplePlan(15)
 
 	startTime := time.Now()
-	patches, err := pc.Generate(ctx, plan)
+	patches, err := pc.Generate(ctx, plan, nil)
 	duration := time.Since(startTime)
 
 	require.NoError(t, err)
@@ -356,7 +356,7 @@ func TestDeterministicParallelCoder(t *testing.T) {
 		dpc := NewDeterministicParallelCoder(baseCoder, config)
 		plan := createSimplePlan(numFiles)
 
-		patches, err := dpc.Generate(ctx, plan)
+		patches, err := dpc.Generate(ctx, plan, nil)
 		require.NoError(t, err)
 		require.Equal(t, numFiles, len(patches))
 
@@ -390,7 +390,7 @@ func TestParallelCoderWithStats(t *testing.T) {
 	pcs := NewParallelCoderWithStats(baseCoder, config)
 	plan := createSimplePlan(20)
 
-	patches, err := pcs.Generate(ctx, plan)
+	patches, err := pcs.Generate(ctx, plan, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 20, len(patches))
@@ -419,7 +419,7 @@ func TestContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	patches, err := pc.Generate(ctx, plan)
+	patches, err := pc.Generate(ctx, plan, nil)
 
 	// Context cancellation might happen during or after execution depending on timing
 	// Accept either: error + partial files OR no error + all files (if fast)
@@ -618,7 +618,7 @@ func BenchmarkParallelCoder_Sequential(b *testing.B) {
 		}
 
 		pc := NewParallelCoder(baseCoder, config)
-		_, err := pc.Generate(ctx, plan)
+		_, err := pc.Generate(ctx, plan, nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -639,7 +639,7 @@ func BenchmarkParallelCoder_Parallel4(b *testing.B) {
 		}
 
 		pc := NewParallelCoder(baseCoder, config)
-		_, err := pc.Generate(ctx, plan)
+		_, err := pc.Generate(ctx, plan, nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -660,7 +660,7 @@ func BenchmarkParallelCoder_Parallel8(b *testing.B) {
 		}
 
 		pc := NewParallelCoder(baseCoder, config)
-		_, err := pc.Generate(ctx, plan)
+		_, err := pc.Generate(ctx, plan, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

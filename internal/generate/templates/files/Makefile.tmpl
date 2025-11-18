@@ -1,0 +1,100 @@
+.PHONY: all build clean test coverage lint fmt vet run docker-build docker-run help
+
+# Variables
+BINARY_NAME={{.ProjectName}}
+GO_VERSION={{.GoVersion}}
+COVERAGE_TARGET={{.CoverageTarget}}
+
+# Build configuration
+BUILD_DIR=./bin
+CMD_DIR=./cmd/{{.ProjectName}}
+
+# Go commands
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOMOD=$(GOCMD) mod
+GOFMT=$(GOCMD) fmt
+GOVET=$(GOCMD) vet
+
+all: clean lint test build
+
+## build: Build the application
+build:
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	@$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
+	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+
+## clean: Remove build artifacts and clean caches
+clean:
+	@echo "Cleaning..."
+	@$(GOCLEAN)
+	@rm -rf $(BUILD_DIR)
+	@rm -f coverage.out coverage.html
+	@echo "Clean complete"
+
+## test: Run all tests
+test:
+	@echo "Running tests..."
+	@$(GOTEST) -v -race ./...
+
+## coverage: Run tests with coverage report
+coverage:
+	@echo "Running tests with coverage..."
+	@$(GOTEST) -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@$(GOCMD) tool cover -func=coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
+	@echo "Coverage report generated: coverage.html"
+
+## lint: Run linter (requires golangci-lint)
+lint:
+	@echo "Running linter..."
+	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Install from https://golangci-lint.run/usage/install/" && exit 1)
+	@golangci-lint run ./...
+
+## fmt: Format all Go files
+fmt:
+	@echo "Formatting code..."
+	@$(GOFMT) ./...
+
+## vet: Run go vet
+vet:
+	@echo "Running go vet..."
+	@$(GOVET) ./...
+
+## run: Build and run the application
+run: build
+	@echo "Running $(BINARY_NAME)..."
+	@$(BUILD_DIR)/$(BINARY_NAME)
+
+## docker-build: Build Docker image
+docker-build:
+	@echo "Building Docker image..."
+	@docker build -t $(BINARY_NAME):latest .
+
+## docker-run: Run Docker container
+docker-run:
+	@echo "Running Docker container..."
+	@docker run --rm -p 8080:8080 $(BINARY_NAME):latest
+
+## deps: Download and verify dependencies
+deps:
+	@echo "Downloading dependencies..."
+	@$(GOMOD) download
+	@$(GOMOD) verify
+
+## tidy: Tidy and verify dependencies
+tidy:
+	@echo "Tidying dependencies..."
+	@$(GOMOD) tidy
+	@$(GOMOD) verify
+
+## help: Show this help message
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':' | sed -e 's/^/  /'

@@ -51,10 +51,10 @@ func NewParallelCoder(coder Coder, config ParallelGenerationConfig) *ParallelCod
 
 // Generate creates source code files in parallel based on the generation plan
 // Uses worker pool pattern with bounded concurrency to avoid overwhelming LLM API
-func (pc *ParallelCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+func (pc *ParallelCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error) {
 	if !pc.config.EnableParallel {
 		// Fall back to sequential generation
-		return pc.coder.Generate(ctx, plan)
+		return pc.coder.Generate(ctx, plan, fcs)
 	}
 
 	log.Info().
@@ -69,7 +69,7 @@ func (pc *ParallelCoder) Generate(ctx context.Context, plan *models.GenerationPl
 	taskGraph := pc.buildDependencyGraph(plan)
 
 	// Generate files respecting dependencies
-	patches, err := pc.generateWithDependencies(ctx, plan, taskGraph)
+	patches, err := pc.generateWithDependencies(ctx, plan, fcs, taskGraph)
 	if err != nil {
 		return nil, fmt.Errorf("parallel generation failed: %w", err)
 	}
@@ -86,8 +86,8 @@ func (pc *ParallelCoder) Generate(ctx context.Context, plan *models.GenerationPl
 }
 
 // GenerateFile delegates to the wrapped coder
-func (pc *ParallelCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error) {
-	return pc.coder.GenerateFile(ctx, task, plan)
+func (pc *ParallelCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error) {
+	return pc.coder.GenerateFile(ctx, task, plan, fcs)
 }
 
 // taskNode represents a task in the dependency graph
@@ -217,7 +217,7 @@ func (pc *ParallelCoder) computeLevels(graph *dependencyGraph) {
 }
 
 // generateWithDependencies generates files in parallel while respecting dependencies
-func (pc *ParallelCoder) generateWithDependencies(ctx context.Context, plan *models.GenerationPlan, graph *dependencyGraph) ([]models.Patch, error) {
+func (pc *ParallelCoder) generateWithDependencies(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification, graph *dependencyGraph) ([]models.Patch, error) {
 	var allPatches []models.Patch
 	var patchesMu sync.Mutex
 
@@ -262,7 +262,7 @@ func (pc *ParallelCoder) generateWithDependencies(ctx context.Context, plan *mod
 				}
 
 				// Generate file - call pc.GenerateFile to respect method overrides
-				patch, err := pc.GenerateFile(gCtx, node.task, plan)
+				patch, err := pc.GenerateFile(gCtx, node.task, plan, fcs)
 				if err != nil {
 					return fmt.Errorf("failed to generate file for task %s: %w", taskID, err)
 				}
@@ -335,10 +335,10 @@ func NewParallelCoderWithStats(coder Coder, config ParallelGenerationConfig) *Pa
 }
 
 // Generate wraps the parent Generate to collect statistics
-func (pcs *ParallelCoderWithStats) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+func (pcs *ParallelCoderWithStats) Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error) {
 	pcs.startTime = time.Now()
 
-	patches, err := pcs.ParallelCoder.Generate(ctx, plan)
+	patches, err := pcs.ParallelCoder.Generate(ctx, plan, fcs)
 
 	pcs.statsMu.Lock()
 	pcs.stats.Duration = time.Since(pcs.startTime)
@@ -353,7 +353,7 @@ func (pcs *ParallelCoderWithStats) Generate(ctx context.Context, plan *models.Ge
 }
 
 // GenerateFile wraps the parent GenerateFile to track worker count
-func (pcs *ParallelCoderWithStats) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error) {
+func (pcs *ParallelCoderWithStats) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error) {
 	// Track concurrent workers
 	pcs.workersMu.Lock()
 	pcs.curWorkers++
@@ -363,7 +363,7 @@ func (pcs *ParallelCoderWithStats) GenerateFile(ctx context.Context, task models
 	pcs.workersMu.Unlock()
 
 	// Generate file
-	patch, err := pcs.ParallelCoder.GenerateFile(ctx, task, plan)
+	patch, err := pcs.ParallelCoder.GenerateFile(ctx, task, plan, fcs)
 
 	// Decrement worker count
 	pcs.workersMu.Lock()
@@ -396,8 +396,8 @@ func NewDeterministicParallelCoder(coder Coder, config ParallelGenerationConfig)
 }
 
 // Generate wraps the parent Generate to ensure deterministic patch ordering
-func (dpc *DeterministicParallelCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
-	patches, err := dpc.ParallelCoder.Generate(ctx, plan)
+func (dpc *DeterministicParallelCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error) {
+	patches, err := dpc.ParallelCoder.Generate(ctx, plan, fcs)
 	if err != nil {
 		return patches, err
 	}

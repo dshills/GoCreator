@@ -213,6 +213,13 @@ func (p *llmPlanner) buildPlanningPrompt(fcs *models.FinalClarifiedSpecification
 	sb.WriteString("   - apply_patch: Modify an existing file\n")
 	sb.WriteString("   - run_command: Execute a build/test command\n\n")
 
+	sb.WriteString("6. **Template-based Files**: Mark these files with generated_by=\"template\" (they will be generated from templates, not LLM):\n")
+	sb.WriteString("   - go.mod\n")
+	sb.WriteString("   - .gitignore\n")
+	sb.WriteString("   - Dockerfile\n")
+	sb.WriteString("   - Makefile\n")
+	sb.WriteString("   - README.md\n\n")
+
 	sb.WriteString("Return ONLY the JSON plan, no additional text or explanation.\n")
 
 	return sb.String()

@@ -18,15 +18,17 @@ import (
 // Coder generates source code from generation plans
 type Coder interface {
 	// Generate creates source code files based on the generation plan
-	Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error)
+	Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error)
 
 	// GenerateFile generates a single file based on task inputs
-	GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error)
+	GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error)
 }
 
 // llmCoder implements Coder using an LLM to generate code
 type llmCoder struct {
-	client llm.Client
+	client        llm.Client
+	contextFilter *ContextFilter
+	metrics       *models.GenerationMetrics
 }
 
 // CoderConfig contains configuration for creating a coder
@@ -42,19 +44,38 @@ func NewCoder(cfg CoderConfig) (Coder, error) {
 
 	return &llmCoder{
 		client: cfg.LLMClient,
+		metrics: &models.GenerationMetrics{
+			PhaseTimings:  make(map[string]time.Duration),
+			CostBreakdown: make(map[string]float64),
+		},
 	}, nil
 }
 
+// SetFCS sets the FCS and initializes the context filter
+func (c *llmCoder) SetFCS(fcs *models.FinalClarifiedSpecification) {
+	c.contextFilter = NewContextFilter(fcs)
+}
+
+// GetMetrics returns the generation metrics
+func (c *llmCoder) GetMetrics() *models.GenerationMetrics {
+	return c.metrics
+}
+
 // Generate creates source code files based on the generation plan
-func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([]models.Patch, error) {
+func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) ([]models.Patch, error) {
 	if plan == nil {
 		return nil, fmt.Errorf("generation plan is required")
+	}
+
+	// Initialize context filter if FCS is provided
+	if fcs != nil {
+		c.SetFCS(fcs)
 	}
 
 	log.Info().
 		Str("plan_id", plan.ID).
 		Int("phases", len(plan.Phases)).
-		Msg("Starting code generation")
+		Msg("Starting code generation with smart context filtering")
 
 	startTime := time.Now()
 	var allPatches []models.Patch
@@ -77,7 +98,7 @@ func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([
 				continue
 			}
 
-			patch, err := c.GenerateFile(ctx, task, plan)
+			patch, err := c.GenerateFile(ctx, task, plan, fcs)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate file for task %s: %w", task.ID, err)
 			}
@@ -91,20 +112,41 @@ func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan) ([
 		Str("plan_id", plan.ID).
 		Int("files_generated", len(allPatches)).
 		Dur("duration", duration).
+		Float64("avg_reduction_pct", c.metrics.AvgReductionPercentage).
 		Msg("Code generation completed")
 
 	return allPatches, nil
 }
 
 // GenerateFile generates a single file based on task inputs
-func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan) (models.Patch, error) {
+func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask, plan *models.GenerationPlan, fcs *models.FinalClarifiedSpecification) (models.Patch, error) {
 	log.Debug().
 		Str("task_id", task.ID).
 		Str("target_path", task.TargetPath).
-		Msg("Generating file")
+		Msg("Generating file with filtered context")
 
-	// Build the prompt for code generation
-	prompt := c.buildCodeGenerationPrompt(task, plan)
+	startTime := time.Now()
+
+	// Filter FCS for this specific file
+	var filteredFCS *FilteredFCS
+	if c.contextFilter != nil {
+		filteredFCS = c.contextFilter.FilterForFile(task.TargetPath, plan, fcs)
+
+		// Track metrics
+		metric := models.ContextFilterMetrics{
+			FilePath:             task.TargetPath,
+			OriginalEntityCount:  filteredFCS.OriginalEntityCount,
+			FilteredEntityCount:  filteredFCS.FilteredEntityCount,
+			OriginalPackageCount: filteredFCS.OriginalPackageCount,
+			FilteredPackageCount: filteredFCS.FilteredPackageCount,
+			ReductionPercentage:  filteredFCS.ReductionPercentage,
+			FilterDuration:       time.Since(startTime),
+		}
+		c.metrics.AddContextFilterMetrics(metric)
+	}
+
+	// Build the prompt for code generation with filtered context
+	prompt := c.buildCodeGenerationPrompt(task, plan, filteredFCS)
 
 	// Call LLM to generate code
 	response, err := c.client.Generate(ctx, prompt)
@@ -127,23 +169,35 @@ func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask,
 		Reversible: true,
 	}
 
-	log.Debug().
+	logEvent := log.Debug().
 		Str("task_id", task.ID).
 		Str("target_path", task.TargetPath).
 		Str("checksum", checksum).
-		Int("lines", strings.Count(code, "\n")+1).
-		Msg("File generated successfully")
+		Int("lines", strings.Count(code, "\n")+1)
+
+	if filteredFCS != nil {
+		logEvent.Float64("context_reduction_pct", filteredFCS.ReductionPercentage)
+	}
+
+	logEvent.Msg("File generated successfully")
 
 	return patch, nil
 }
 
 // buildCodeGenerationPrompt constructs the LLM prompt for code generation
-func (c *llmCoder) buildCodeGenerationPrompt(task models.GenerationTask, plan *models.GenerationPlan) string {
+func (c *llmCoder) buildCodeGenerationPrompt(task models.GenerationTask, plan *models.GenerationPlan, filteredFCS *FilteredFCS) string {
 	var sb strings.Builder
 
 	sb.WriteString("You are an expert Go developer generating production-ready code.\n\n")
 	sb.WriteString("# Task\n")
 	sb.WriteString(fmt.Sprintf("Generate a Go source file for: %s\n\n", task.TargetPath))
+
+	// Include filtered FCS context if available
+	if filteredFCS != nil {
+		sb.WriteString("# Project Context (Filtered)\n\n")
+		sb.WriteString(c.contextFilter.FormatFilteredFCS(filteredFCS))
+		sb.WriteString("\n")
+	}
 
 	// Determine file type and provide specific instructions
 	fileName := filepath.Base(task.TargetPath)
