@@ -147,11 +147,35 @@ func (c *llmCoder) Generate(ctx context.Context, plan *models.GenerationPlan, fc
 		}
 	}
 
+	// Collect cache metrics if client supports caching
+	if cacheableClient, ok := c.client.(llm.CacheableClient); ok {
+		cacheMetrics := cacheableClient.GetCacheMetrics()
+
+		// Update generation metrics with cache data
+		c.metrics.CachedTokens = cacheMetrics.CacheReadTokens
+		c.metrics.TokensSaved = cacheMetrics.TokensSaved()
+		c.metrics.CacheHits = int(cacheMetrics.CacheHits)
+		c.metrics.CacheMisses = int(cacheMetrics.CacheMisses)
+		c.metrics.CacheHitRate = cacheMetrics.CacheHitRate()
+		c.metrics.TotalInputTokens = cacheMetrics.InputTokens + cacheMetrics.CacheCreationTokens + cacheMetrics.CacheReadTokens
+		c.metrics.TotalOutputTokens = cacheMetrics.OutputTokens
+		c.metrics.TotalLLMCalls += int(cacheMetrics.CacheHits + cacheMetrics.CacheMisses)
+
+		log.Info().
+			Int64("cache_hits", cacheMetrics.CacheHits).
+			Int64("cache_misses", cacheMetrics.CacheMisses).
+			Float64("cache_hit_rate_pct", cacheMetrics.CacheHitRate()).
+			Int64("tokens_saved", cacheMetrics.TokensSaved()).
+			Float64("cost_savings_pct", cacheMetrics.CostSavingsPercent()).
+			Msg("Prompt cache performance")
+	}
+
 	log.Info().
 		Str("plan_id", plan.ID).
 		Int("files_generated", len(allPatches)).
 		Dur("duration", duration).
 		Float64("avg_reduction_pct", c.metrics.AvgReductionPercentage).
+		Float64("cache_hit_rate_pct", c.metrics.CacheHitRate).
 		Msg("Code generation completed")
 
 	return allPatches, nil
@@ -330,11 +354,30 @@ func (c *llmCoder) GenerateFile(ctx context.Context, task models.GenerationTask,
 		c.metrics.AddContextFilterMetrics(metric)
 	}
 
-	// Build the prompt for code generation with filtered context
-	prompt := c.buildCodeGenerationPrompt(task, plan, filteredFCS)
+	// Try to use prompt caching if the client supports it (Anthropic only)
+	var response string
+	var err error
 
-	// Call LLM to generate code
-	response, err := c.client.Generate(ctx, prompt)
+	if cacheableClient, ok := c.client.(llm.CacheableClient); ok {
+		// Client supports caching - use cached prompts
+		log.Debug().
+			Str("provider", c.client.Provider()).
+			Str("task_id", task.ID).
+			Msg("Using prompt caching for code generation")
+
+		messages := c.buildCodeGenerationPromptWithCache(task, plan, filteredFCS)
+		response, err = cacheableClient.GenerateWithCache(ctx, messages)
+	} else {
+		// Client doesn't support caching - use standard generation
+		log.Debug().
+			Str("provider", c.client.Provider()).
+			Str("task_id", task.ID).
+			Msg("Client doesn't support caching, using standard generation")
+
+		prompt := c.buildCodeGenerationPrompt(task, plan, filteredFCS)
+		response, err = c.client.Generate(ctx, prompt)
+	}
+
 	if err != nil {
 		return models.Patch{}, fmt.Errorf("LLM code generation failed: %w", err)
 	}
@@ -520,6 +563,167 @@ func (c *llmCoder) buildCodeGenerationPrompt(task models.GenerationTask, plan *m
 	sb.WriteString("The code should be complete, correctly formatted, and ready to use.\n")
 
 	return sb.String()
+}
+
+// buildCodeGenerationPromptWithCache constructs cacheable LLM prompts for code generation
+// This method separates static (cacheable) content from dynamic (task-specific) content
+// to leverage Anthropic's prompt caching for 60-80% token savings
+func (c *llmCoder) buildCodeGenerationPromptWithCache(task models.GenerationTask, plan *models.GenerationPlan, filteredFCS *FilteredFCS) []llm.CacheableMessage {
+	builder := llm.NewPromptBuilder("5m") // 5-minute cache TTL
+
+	// CACHEABLE PART 1: Coding standards and best practices (completely static across all files)
+	var standards strings.Builder
+	standards.WriteString("You are an expert Go developer generating production-ready code.\n\n")
+	standards.WriteString("# Coding Standards\n\n")
+	standards.WriteString("1. **Go Best Practices**:\n")
+	standards.WriteString("   - Follow Go idioms and conventions\n")
+	standards.WriteString("   - Accept interfaces, return structs\n")
+	standards.WriteString("   - Use meaningful variable names\n")
+	standards.WriteString("   - Keep functions small and focused\n\n")
+	standards.WriteString("2. **Error Handling**:\n")
+	standards.WriteString("   - Return errors, don't panic\n")
+	standards.WriteString("   - Wrap errors with context using fmt.Errorf\n")
+	standards.WriteString("   - Use sentinel errors for known conditions\n\n")
+	standards.WriteString("3. **Documentation**:\n")
+	standards.WriteString("   - Add godoc comments for all exported symbols\n")
+	standards.WriteString("   - Comments should explain why, not what\n")
+	standards.WriteString("   - Keep line length under 100 characters\n\n")
+	standards.WriteString("4. **Testing**:\n")
+	standards.WriteString("   - Write testable code\n")
+	standards.WriteString("   - Use dependency injection\n")
+	standards.WriteString("   - Avoid global state\n\n")
+
+	builder.AddCacheable(standards.String())
+
+	// CACHEABLE PART 2: Filtered FCS context (stable across all files in this generation run)
+	if filteredFCS != nil {
+		var fcsContext strings.Builder
+		fcsContext.WriteString("# Project Context (Filtered)\n\n")
+		fcsContext.WriteString(c.contextFilter.FormatFilteredFCS(filteredFCS))
+		fcsContext.WriteString("\n")
+		builder.AddCacheable(fcsContext.String())
+	}
+
+	// DYNAMIC PART: Task-specific instructions (changes for each file)
+	var taskInstructions strings.Builder
+	taskInstructions.WriteString("# Task\n")
+	taskInstructions.WriteString(fmt.Sprintf("Generate a Go source file for: %s\n\n", task.TargetPath))
+
+	// Determine file type and provide specific instructions
+	fileName := filepath.Base(task.TargetPath)
+	fileType := c.determineFileType(fileName)
+
+	taskInstructions.WriteString(fmt.Sprintf("# File Type: %s\n\n", fileType))
+
+	// Get file purpose from plan
+	filePurpose := c.getFilePurpose(task.TargetPath, plan)
+	if filePurpose != "" {
+		taskInstructions.WriteString(fmt.Sprintf("# Purpose\n%s\n\n", filePurpose))
+	}
+
+	// Add context from task inputs
+	if task.Inputs != nil {
+		taskInstructions.WriteString("# Context\n")
+		if pkg, ok := task.Inputs["package"].(string); ok {
+			taskInstructions.WriteString(fmt.Sprintf("Package: %s\n", pkg))
+		}
+		if entities, ok := task.Inputs["entities"].([]interface{}); ok {
+			taskInstructions.WriteString("Entities: ")
+			for i, e := range entities {
+				if i > 0 {
+					taskInstructions.WriteString(", ")
+				}
+				taskInstructions.WriteString(fmt.Sprintf("%v", e))
+			}
+			taskInstructions.WriteString("\n")
+		}
+		if deps, ok := task.Inputs["dependencies"].([]interface{}); ok {
+			taskInstructions.WriteString("Dependencies: ")
+			for i, d := range deps {
+				if i > 0 {
+					taskInstructions.WriteString(", ")
+				}
+				taskInstructions.WriteString(fmt.Sprintf("%v", d))
+			}
+			taskInstructions.WriteString("\n")
+		}
+		taskInstructions.WriteString("\n")
+	}
+
+	// Type-specific instructions
+	taskInstructions.WriteString("# Requirements\n\n")
+
+	switch fileType {
+	case "go.mod":
+		taskInstructions.WriteString("Generate a go.mod file with:\n")
+		taskInstructions.WriteString("- Correct module path\n")
+		taskInstructions.WriteString("- Go version from build config\n")
+		taskInstructions.WriteString("- Required dependencies with versions\n")
+		taskInstructions.WriteString("- Proper formatting\n\n")
+
+	case "main.go":
+		taskInstructions.WriteString("Generate a main.go file with:\n")
+		taskInstructions.WriteString("- package main declaration\n")
+		taskInstructions.WriteString("- Proper imports\n")
+		taskInstructions.WriteString("- main() function with initialization\n")
+		taskInstructions.WriteString("- Error handling and logging\n")
+		taskInstructions.WriteString("- Graceful shutdown handling\n\n")
+
+	case "model":
+		taskInstructions.WriteString("Generate a model/entity file with:\n")
+		taskInstructions.WriteString("- Proper package declaration\n")
+		taskInstructions.WriteString("- Struct definitions with JSON tags\n")
+		taskInstructions.WriteString("- Validation methods\n")
+		taskInstructions.WriteString("- Constructor functions\n")
+		taskInstructions.WriteString("- Godoc comments for all exported types and functions\n\n")
+
+	case "repository":
+		taskInstructions.WriteString("Generate a repository file with:\n")
+		taskInstructions.WriteString("- Interface definition for repository contract\n")
+		taskInstructions.WriteString("- Concrete implementation struct\n")
+		taskInstructions.WriteString("- Constructor function\n")
+		taskInstructions.WriteString("- All CRUD methods with proper error handling\n")
+		taskInstructions.WriteString("- Context support for cancellation\n\n")
+
+	case "service":
+		taskInstructions.WriteString("Generate a service file with:\n")
+		taskInstructions.WriteString("- Service interface definition\n")
+		taskInstructions.WriteString("- Service struct with dependencies\n")
+		taskInstructions.WriteString("- Constructor with dependency injection\n")
+		taskInstructions.WriteString("- Business logic methods\n")
+		taskInstructions.WriteString("- Proper error handling and logging\n\n")
+
+	case "handler":
+		taskInstructions.WriteString("Generate an HTTP handler file with:\n")
+		taskInstructions.WriteString("- Handler struct with service dependencies\n")
+		taskInstructions.WriteString("- HTTP handler functions\n")
+		taskInstructions.WriteString("- Request validation\n")
+		taskInstructions.WriteString("- Proper HTTP status codes\n")
+		taskInstructions.WriteString("- JSON encoding/decoding\n\n")
+
+	case "test":
+		taskInstructions.WriteString("Generate a test file with:\n")
+		taskInstructions.WriteString("- Table-driven tests using testing package\n")
+		taskInstructions.WriteString("- Test setup and teardown\n")
+		taskInstructions.WriteString("- Mocks for dependencies\n")
+		taskInstructions.WriteString("- Comprehensive test cases including edge cases\n")
+		taskInstructions.WriteString("- Proper assertions\n\n")
+
+	default:
+		taskInstructions.WriteString("Generate a well-structured Go file with:\n")
+		taskInstructions.WriteString("- Proper package declaration\n")
+		taskInstructions.WriteString("- Clear, idiomatic Go code\n")
+		taskInstructions.WriteString("- Proper error handling\n")
+		taskInstructions.WriteString("- Comprehensive documentation\n\n")
+	}
+
+	taskInstructions.WriteString("# Output Format\n\n")
+	taskInstructions.WriteString("Return ONLY the Go source code, no additional explanation or markdown.\n")
+	taskInstructions.WriteString("The code should be complete, correctly formatted, and ready to use.\n")
+
+	builder.AddDynamic(taskInstructions.String())
+
+	return builder.Build()
 }
 
 // determineFileType determines the type of file being generated

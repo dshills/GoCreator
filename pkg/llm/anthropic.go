@@ -241,18 +241,18 @@ func (c *anthropicClient) GenerateWithCache(ctx context.Context, messages []Cach
 
 		// Update cache metrics from usage
 		if response.Usage.CacheCreationInputTokens > 0 {
-			c.cacheMetrics.CacheCreationTokens += int64(response.Usage.CacheCreationInputTokens)
+			c.cacheMetrics.CacheCreationTokens += response.Usage.CacheCreationInputTokens
 			c.cacheMetrics.CacheMisses++
 		}
 		if response.Usage.CacheReadInputTokens > 0 {
-			c.cacheMetrics.CacheReadTokens += int64(response.Usage.CacheReadInputTokens)
+			c.cacheMetrics.CacheReadTokens += response.Usage.CacheReadInputTokens
 			c.cacheMetrics.CacheHits++
 		}
 		if response.Usage.InputTokens > 0 {
-			c.cacheMetrics.InputTokens += int64(response.Usage.InputTokens)
+			c.cacheMetrics.InputTokens += response.Usage.InputTokens
 		}
 		if response.Usage.OutputTokens > 0 {
-			c.cacheMetrics.OutputTokens += int64(response.Usage.OutputTokens)
+			c.cacheMetrics.OutputTokens += response.Usage.OutputTokens
 		}
 
 		return nil

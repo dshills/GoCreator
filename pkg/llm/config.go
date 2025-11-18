@@ -117,10 +117,7 @@ func (c Config) Validate() error {
 		if c.CacheTTL != "" && c.CacheTTL != "5m" && c.CacheTTL != "1h" {
 			return fmt.Errorf("cache TTL must be either '5m' or '1h', got: %s", c.CacheTTL)
 		}
-		// Default to 5m if not specified
-		if c.CacheTTL == "" {
-			c.CacheTTL = "5m"
-		}
+		// Note: Default CacheTTL ("5m") is set in DefaultConfig()
 	}
 
 	return nil

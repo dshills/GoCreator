@@ -34,6 +34,21 @@ type Client interface {
 	Model() string
 }
 
+// CacheableClient extends Client with prompt caching support (currently Anthropic only)
+type CacheableClient interface {
+	Client
+
+	// GenerateWithCache generates text using cacheable messages for prompt caching
+	// This method is only supported by Anthropic clients
+	GenerateWithCache(ctx context.Context, messages []CacheableMessage) (string, error)
+
+	// GetCacheMetrics returns the current prompt cache metrics
+	GetCacheMetrics() PromptCacheMetrics
+
+	// ResetCacheMetrics resets the cache metrics counters
+	ResetCacheMetrics()
+}
+
 // baseClient provides common functionality for all provider implementations
 type baseClient struct {
 	config Config
