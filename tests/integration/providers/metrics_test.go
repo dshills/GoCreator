@@ -2,6 +2,7 @@ package providers_test
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -10,6 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// skipIfNoAPIKeys skips the test if required API keys are not set
+func skipIfNoAPIKeys(t *testing.T) {
+	t.Helper()
+	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("ANTHROPIC_API_KEY") == "" {
+		t.Skip("Skipping integration test: API keys not configured")
+	}
+}
 
 // TestMetrics_EndToEndFlow tests the complete metrics lifecycle:
 // 1. Execute task (simulated)
@@ -20,6 +29,7 @@ func TestMetrics_EndToEndFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	// Load configuration
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
@@ -114,6 +124,7 @@ func TestMetrics_TimeRangeFiltering(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)
@@ -178,6 +189,7 @@ func TestMetrics_NoData(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)
@@ -208,6 +220,7 @@ func TestMetrics_ProviderRoleIsolation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)

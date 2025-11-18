@@ -2,6 +2,7 @@ package providers_test
 
 import (
 	"context"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -12,12 +13,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// skipIfNoAPIKeys skips the test if required API keys are not set
+func skipIfNoAPIKeys(t *testing.T) {
+	t.Helper()
+	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("ANTHROPIC_API_KEY") == "" {
+		t.Skip("Skipping integration test: API keys not configured")
+	}
+}
+
 // TestConcurrentProviderUsage_MultipleTasksParallel tests that multiple tasks
 // can execute concurrently using different providers without race conditions
 func TestConcurrentProviderUsage_MultipleTasksParallel(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	// Load test configuration
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
@@ -96,6 +106,7 @@ func TestConcurrentProviderUsage_RaceConditions(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)
@@ -162,6 +173,7 @@ func TestConcurrentProviderUsage_LoadBalancing(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)
@@ -209,6 +221,7 @@ func TestConcurrentProviderUsage_ContextCancellation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)

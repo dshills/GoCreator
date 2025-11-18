@@ -391,6 +391,12 @@ issues:
       linters:
         - errcheck
 
+    # Incremental state - cleanup errors in error path are intentionally ignored
+    - path: internal/generate/incremental_state\.go
+      text: "Error return value of `os\\.Remove` is not checked"
+      linters:
+        - errcheck
+
     # noopLogger methods are trivial interface implementations
     - path: pkg/fsops/logger\.go
       text: "noopLogger.*should have comment"

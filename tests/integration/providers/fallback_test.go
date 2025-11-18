@@ -2,6 +2,7 @@ package providers_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/dshills/gocreator/internal/providers"
@@ -9,6 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// skipIfNoAPIKeys skips the test if required API keys are not set
+func skipIfNoAPIKeys(t *testing.T) {
+	t.Helper()
+	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("ANTHROPIC_API_KEY") == "" {
+		t.Skip("Skipping integration test: API keys not configured")
+	}
+}
 
 // TestFallbackBehavior_PrimaryToFallback tests that when the primary provider
 // for a role is unavailable, the system falls back to the first available fallback provider
@@ -67,6 +76,7 @@ func TestFallbackBehavior_DefaultProvider(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	config, err := providers.LoadConfig("../../../tests/fixtures/providers/valid_config.yaml")
 	require.NoError(t, err)
@@ -164,6 +174,7 @@ func TestFallbackBehavior_CircularReferenceProtection(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	skipIfNoAPIKeys(t)
 
 	// This should be caught during config validation, not at runtime
 	// Test that we properly validate fallback chains during config load
