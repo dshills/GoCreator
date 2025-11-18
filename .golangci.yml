@@ -1,21 +1,16 @@
-# golangci-lint configuration for LangGraph-Go
+# golangci-lint configuration for GoCreator
 # Aligned with constitution.md principles: type safety, interfaces, TDD, observability
-
-version: "2"
 
 run:
   timeout: 5m
   tests: false  # Skip test files to avoid 200+ test-related linting issues
-  skip-dirs:
-    - vendor
-    - tests
   go: '1.23'
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
-  uniq-by-line: true
   sort-results: true
 
 linters:
@@ -81,8 +76,11 @@ linters-settings:
 
   govet:
     enable:
+      - appends
+      - asmdecl
+      - assign
       - atomic
-      - bool
+      - bools
       - composites
       - copylocks
       - errorsas
@@ -181,7 +179,6 @@ linters-settings:
   unused:
     field-writes-are-uses: true
     post-statements-are-reads: true
-    exported-is-used: true
     exported-fields-are-used: true
     parameters-are-used: true
     local-variables-are-used: true
@@ -193,6 +190,9 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
+  exclude-dirs:
+    - vendor
+    - tests
 
   exclude-rules:
     # Exclude linters from tests directory (integration/unit tests with relaxed rules)
