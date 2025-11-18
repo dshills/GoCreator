@@ -335,7 +335,7 @@ issues:
 
     # Progress display errors are non-critical - exclude errcheck for fmt print functions
     - path: internal/cli/progress\.go
-      text: "Error return value.*fmt\\.F"
+      text: "Error return value.*(Fprintf|Fprintln)"
       linters:
         - errcheck
 
@@ -347,7 +347,7 @@ issues:
 
     # Large state structs required by graph node interface (langgraph-go)
     - path: internal/clarify/graph\.go
-      text: "hugeParam.*ClarificationState"
+      text: "hugeParam.*(ClarificationState|prev|delta|_)"
       linters:
         - gocritic
 
