@@ -4,7 +4,7 @@
 run:
   timeout: 5m
   tests: false  # Skip test files to avoid 200+ test-related linting issues
-  go: '1.23'
+  go: '1.24'
 
 output:
   formats:
@@ -57,7 +57,6 @@ linters:
     - godot           # Comment punctuation - too noisy
     - godox           # TODO/FIXME comments are intentional project markers
     - goconst         # Test string constants don't justify extraction
-    - gocritic        # Re-enable with specific disabled-checks if needed
     - gocyclo         # Orchestration and comprehensive test functions justify complexity
     - mnd             # Magic number detector - too noisy
     - lll             # Line length - formatters handle this
