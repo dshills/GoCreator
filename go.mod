@@ -3,7 +3,7 @@ module github.com/dshills/gocreator
 go 1.25.4
 
 require (
-	github.com/dshills/langgraph-go v0.2.0-alpha
+	github.com/dshills/langgraph-go v0.3.0-alpha
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
 	github.com/sergi/go-diff v1.4.0
