@@ -209,6 +209,11 @@ func writeFCS(fcs *models.FinalClarifiedSpecification, path string) error {
 }
 
 func createLLMClient(cfg *config.Config) (llm.Client, error) {
+	// Validate config
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
 	// Get API key from config or environment variable
 	apiKey := cfg.LLM.APIKey
 	if apiKey == "" {

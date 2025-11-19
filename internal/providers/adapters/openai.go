@@ -4,6 +4,7 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/dshills/gocreator/internal/providers"
@@ -204,36 +205,13 @@ func classifyError(err error) providers.ErrorCode {
 
 // contains checks if any of the substrings exist in the string (case-insensitive)
 func contains(s string, substrings ...string) bool {
-	lower := toLower(s)
+	lower := strings.ToLower(s)
 	for _, sub := range substrings {
-		if containsSubstring(lower, toLower(sub)) {
+		if strings.Contains(lower, strings.ToLower(sub)) {
 			return true
 		}
 	}
 	return false
-}
-
-// Simple case-insensitive contains
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-// Simple ASCII lowercase conversion
-func toLower(s string) string {
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c = c + ('a' - 'A')
-		}
-		result[i] = c
-	}
-	return string(result)
 }
 
 func estimateTokens(text string) int {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -319,23 +320,23 @@ func (ism *IncrementalStateManager) Clear() error {
 
 // isTemplateFile determines if a file is generated from a template rather than AI-generated code
 func isTemplateFile(path string) bool {
-	// Get the base filename
-	base := filepath.Base(path)
+	// Get the base filename and normalize to lowercase for case-insensitive matching
+	base := strings.ToLower(filepath.Base(path))
 
-	// Common template-generated files
+	// Common template-generated files (all lowercase for matching)
 	templateFiles := map[string]bool{
 		"go.mod":              true,
 		"go.sum":              true,
 		"go.work":             true,
-		"Makefile":            true,
-		"Dockerfile":          true,
+		"makefile":            true,
+		"dockerfile":          true,
 		"docker-compose.yml":  true,
 		"docker-compose.yaml": true,
 		".gitignore":          true,
 		".dockerignore":       true,
-		"LICENSE":             true,
-		"LICENSE.txt":         true,
-		"LICENSE.md":          true,
+		"license":             true,
+		"license.txt":         true,
+		"license.md":          true,
 		".golangci.yml":       true,
 		".golangci.yaml":      true,
 		".editorconfig":       true,
