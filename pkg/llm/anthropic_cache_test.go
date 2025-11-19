@@ -142,6 +142,10 @@ func TestPromptBuilderSinglePrompt(t *testing.T) {
 // TestAnthropicCacheIntegration tests the cache functionality with real API calls
 // This test requires ANTHROPIC_API_KEY environment variable
 func TestAnthropicCacheIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
 		t.Skip("ANTHROPIC_API_KEY not set, skipping integration test")
@@ -149,7 +153,7 @@ func TestAnthropicCacheIntegration(t *testing.T) {
 
 	config := Config{
 		Provider:      ProviderAnthropic,
-		Model:         "claude-sonnet-4",
+		Model:         "claude-3-5-sonnet-20241022",
 		Temperature:   0.0,
 		APIKey:        apiKey,
 		Timeout:       30 * time.Second,
