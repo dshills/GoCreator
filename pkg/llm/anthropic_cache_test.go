@@ -153,7 +153,7 @@ func TestAnthropicCacheIntegration(t *testing.T) {
 
 	config := Config{
 		Provider:      ProviderAnthropic,
-		Model:         "claude-3-5-sonnet-20241022",
+		Model:         "claude-sonnet-4-5",
 		Temperature:   0.0,
 		APIKey:        apiKey,
 		Timeout:       30 * time.Second,

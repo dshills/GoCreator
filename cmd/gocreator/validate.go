@@ -80,6 +80,54 @@ func runValidate(_ *cobra.Command, args []string) error {
 	}
 
 	// Configure validators based on skip flags
+	logSkippedValidations()
+
+	// Run validation
+	ctx := context.Background()
+
+	// Run validations
+	buildPassed, err := runBuildValidation(ctx, projectRoot)
+	if err != nil {
+		return err
+	}
+
+	lintPassed, err := runLintValidation(ctx, projectRoot)
+	if err != nil {
+		return err
+	}
+
+	testPassed, err := runTestValidation(ctx, projectRoot)
+	if err != nil {
+		return err
+	}
+
+	// Determine overall result
+	checksRun, checksPassed := calculateResults(buildPassed, lintPassed, testPassed)
+	allPassed := checksPassed == checksRun
+
+	// Print result
+	printValidationResult(allPassed, checksPassed, checksRun)
+
+	// Save report if requested
+	if err := saveReport(buildPassed, lintPassed, testPassed, checksRun, checksPassed); err != nil {
+		return err
+	}
+
+	log.Info().
+		Bool("all_passed", allPassed).
+		Int("checks_passed", checksPassed).
+		Int("checks_run", checksRun).
+		Msg("Validation phase completed")
+
+	// Return error if any checks failed
+	if !allPassed {
+		return ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("validation failed: %d/%d checks passed", checksPassed, checksRun)}
+	}
+
+	return nil
+}
+
+func logSkippedValidations() {
 	if validateSkipBuild {
 		log.Info().Msg("Build validation skipped")
 	}
@@ -89,104 +137,105 @@ func runValidate(_ *cobra.Command, args []string) error {
 	if validateSkipTests {
 		log.Info().Msg("Test validation skipped")
 	}
+}
 
-	// Run validation
-	ctx := context.Background()
-
-	// Build validation
-	var buildPassed bool
-	if !validateSkipBuild {
-		fmt.Printf("[1/3] Build Validation\n")
-		fmt.Printf("  Running: go build ./...\n")
-
-		buildValidator := validate.NewBuildValidator(cfg.Validation.TestTimeout)
-		buildResult, err := buildValidator.Validate(ctx, projectRoot)
-		if err != nil {
-			log.Error().Err(err).Msg("Build validation error")
-			return ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("build validation error: %w", err)}
-		}
-
-		if buildResult.Success {
-			fmt.Printf("  ✓ Build successful [elapsed: %.1fs]\n\n", buildResult.Duration.Seconds())
-			buildPassed = true
-		} else {
-			fmt.Printf("  ✗ Build failed:\n")
-			for _, err := range buildResult.Errors {
-				fmt.Printf("    - %s:%d: %s\n", err.File, err.Line, err.Message)
-			}
-			fmt.Printf("\n")
-			buildPassed = false
-		}
+func runBuildValidation(ctx context.Context, projectRoot string) (bool, error) {
+	if validateSkipBuild {
+		return false, nil
 	}
 
-	// Lint validation
-	var lintPassed bool
-	if !validateSkipLint {
-		fmt.Printf("[2/3] Lint Validation\n")
-		fmt.Printf("  Running: golangci-lint run ./...\n")
+	fmt.Printf("[1/3] Build Validation\n")
+	fmt.Printf("  Running: go build ./...\n")
 
-		lintValidator := validate.NewLintValidator(validate.WithSkipIfNotFound(true))
-		lintResult, err := lintValidator.Validate(ctx, projectRoot)
-		if err != nil {
-			log.Error().Err(err).Msg("Lint validation error")
-			return ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("lint validation error: %w", err)}
-		}
-
-		if lintResult.Success {
-			fmt.Printf("  ✓ No lint issues found [elapsed: %.1fs]\n\n", lintResult.Duration.Seconds())
-			lintPassed = true
-		} else {
-			fmt.Printf("  ✗ Found %d issues:\n", len(lintResult.Issues))
-			for i, issue := range lintResult.Issues {
-				if i < 10 { // Show first 10 issues
-					fmt.Printf("    - %s:%d: %s\n", issue.File, issue.Line, issue.Message)
-				}
-			}
-			if len(lintResult.Issues) > 10 {
-				fmt.Printf("    ... and %d more issues\n", len(lintResult.Issues)-10)
-			}
-			fmt.Printf("\n")
-			lintPassed = false
-		}
+	buildValidator := validate.NewBuildValidator(cfg.Validation.TestTimeout)
+	buildResult, err := buildValidator.Validate(ctx, projectRoot)
+	if err != nil {
+		log.Error().Err(err).Msg("Build validation error")
+		return false, ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("build validation error: %w", err)}
 	}
 
-	// Test validation
-	var testPassed bool
-	if !validateSkipTests {
-		fmt.Printf("[3/3] Test Validation\n")
-		fmt.Printf("  Running: go test ./...\n")
-
-		testValidator := validate.NewTestValidator(validate.WithTestTimeout(cfg.Validation.TestTimeout))
-		testResult, err := testValidator.Validate(ctx, projectRoot)
-		if err != nil {
-			log.Error().Err(err).Msg("Test validation error")
-			return ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("test validation error: %w", err)}
-		}
-
-		if testResult.Success {
-			fmt.Printf("  ✓ All tests passed (%d/%d) [coverage: %.1f%%] [elapsed: %.1fs]\n\n",
-				testResult.PassedTests, testResult.TotalTests, testResult.Coverage, testResult.Duration.Seconds())
-			testPassed = true
-		} else {
-			fmt.Printf("  ✗ Tests failed (%d/%d passed) [coverage: %.1f%%]\n",
-				testResult.PassedTests, testResult.TotalTests, testResult.Coverage)
-			for i, failure := range testResult.Failures {
-				if i < 5 { // Show first 5 failures
-					fmt.Printf("    - %s: %s\n", failure.Test, failure.Message)
-				}
-			}
-			if len(testResult.Failures) > 5 {
-				fmt.Printf("    ... and %d more failures\n", len(testResult.Failures)-5)
-			}
-			fmt.Printf("\n")
-			testPassed = false
-		}
+	if buildResult.Success {
+		fmt.Printf("  ✓ Build successful [elapsed: %.1fs]\n\n", buildResult.Duration.Seconds())
+		return true, nil
 	}
 
-	// Determine overall result
-	checksRun := 0
-	checksPassed := 0
+	fmt.Printf("  ✗ Build failed:\n")
+	for _, buildErr := range buildResult.Errors {
+		fmt.Printf("    - %s:%d: %s\n", buildErr.File, buildErr.Line, buildErr.Message)
+	}
+	fmt.Printf("\n")
+	return false, nil
+}
 
+func runLintValidation(ctx context.Context, projectRoot string) (bool, error) {
+	if validateSkipLint {
+		return false, nil
+	}
+
+	fmt.Printf("[2/3] Lint Validation\n")
+	fmt.Printf("  Running: golangci-lint run ./...\n")
+
+	lintValidator := validate.NewLintValidator(validate.WithSkipIfNotFound(true))
+	lintResult, err := lintValidator.Validate(ctx, projectRoot)
+	if err != nil {
+		log.Error().Err(err).Msg("Lint validation error")
+		return false, ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("lint validation error: %w", err)}
+	}
+
+	if lintResult.Success {
+		fmt.Printf("  ✓ No lint issues found [elapsed: %.1fs]\n\n", lintResult.Duration.Seconds())
+		return true, nil
+	}
+
+	fmt.Printf("  ✗ Found %d issues:\n", len(lintResult.Issues))
+	for i, issue := range lintResult.Issues {
+		if i < 10 { // Show first 10 issues
+			fmt.Printf("    - %s:%d: %s\n", issue.File, issue.Line, issue.Message)
+		}
+	}
+	if len(lintResult.Issues) > 10 {
+		fmt.Printf("    ... and %d more issues\n", len(lintResult.Issues)-10)
+	}
+	fmt.Printf("\n")
+	return false, nil
+}
+
+func runTestValidation(ctx context.Context, projectRoot string) (bool, error) {
+	if validateSkipTests {
+		return false, nil
+	}
+
+	fmt.Printf("[3/3] Test Validation\n")
+	fmt.Printf("  Running: go test ./...\n")
+
+	testValidator := validate.NewTestValidator(validate.WithTestTimeout(cfg.Validation.TestTimeout))
+	testResult, err := testValidator.Validate(ctx, projectRoot)
+	if err != nil {
+		log.Error().Err(err).Msg("Test validation error")
+		return false, ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("test validation error: %w", err)}
+	}
+
+	if testResult.Success {
+		fmt.Printf("  ✓ All tests passed (%d/%d) [coverage: %.1f%%] [elapsed: %.1fs]\n\n",
+			testResult.PassedTests, testResult.TotalTests, testResult.Coverage, testResult.Duration.Seconds())
+		return true, nil
+	}
+
+	fmt.Printf("  ✗ Tests failed (%d/%d passed) [coverage: %.1f%%]\n",
+		testResult.PassedTests, testResult.TotalTests, testResult.Coverage)
+	for i, failure := range testResult.Failures {
+		if i < 5 { // Show first 5 failures
+			fmt.Printf("    - %s: %s\n", failure.Test, failure.Message)
+		}
+	}
+	if len(testResult.Failures) > 5 {
+		fmt.Printf("    ... and %d more failures\n", len(testResult.Failures)-5)
+	}
+	fmt.Printf("\n")
+	return false, nil
+}
+
+func calculateResults(buildPassed, lintPassed, testPassed bool) (checksRun, checksPassed int) {
 	if !validateSkipBuild {
 		checksRun++
 		if buildPassed {
@@ -205,51 +254,43 @@ func runValidate(_ *cobra.Command, args []string) error {
 			checksPassed++
 		}
 	}
+	return checksRun, checksPassed
+}
 
-	allPassed := checksPassed == checksRun
-
+func printValidationResult(allPassed bool, checksPassed, checksRun int) {
 	if allPassed {
 		fmt.Printf("Validation Result: PASSED (%d/%d checks passed)\n", checksPassed, checksRun)
 	} else {
 		fmt.Printf("Validation Result: FAILED (%d/%d checks passed)\n", checksPassed, checksRun)
 	}
+}
 
-	// Save report if requested
-	if validateReport != "" {
-		log.Info().Str("report_path", validateReport).Msg("Saving validation report")
-		fmt.Printf("\nDetailed report written to: %s\n", validateReport)
-
-		// TODO: Implement actual report saving
-		report := map[string]interface{}{
-			"build_passed":  buildPassed,
-			"lint_passed":   lintPassed,
-			"test_passed":   testPassed,
-			"checks_run":    checksRun,
-			"checks_passed": checksPassed,
-		}
-
-		data, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to marshal report")
-			return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to marshal report: %w", err)}
-		}
-
-		if err := os.WriteFile(validateReport, data, 0o600); err != nil {
-			log.Error().Err(err).Msg("Failed to write report")
-			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to write report: %w", err)}
-		}
+func saveReport(buildPassed, lintPassed, testPassed bool, checksRun, checksPassed int) error {
+	if validateReport == "" {
+		return nil
 	}
 
-	log.Info().
-		Bool("all_passed", allPassed).
-		Int("checks_passed", checksPassed).
-		Int("checks_run", checksRun).
-		Msg("Validation phase completed")
-
-	// Return error if any checks failed
-	if !allPassed {
-		return ExitError{Code: ExitCodeValidationError, Err: fmt.Errorf("validation failed: %d/%d checks passed", checksPassed, checksRun)}
+	report := map[string]interface{}{
+		"build_passed":  buildPassed,
+		"lint_passed":   lintPassed,
+		"test_passed":   testPassed,
+		"checks_run":    checksRun,
+		"checks_passed": checksPassed,
 	}
+
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal report")
+		return ExitError{Code: ExitCodeInternalError, Err: fmt.Errorf("failed to marshal report: %w", err)}
+	}
+
+	if err := os.WriteFile(validateReport, data, 0o600); err != nil {
+		log.Error().Err(err).Msg("Failed to write report")
+		return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to write report: %w", err)}
+	}
+
+	log.Info().Str("report_path", validateReport).Msg("Saved validation report")
+	fmt.Printf("\nDetailed report written to: %s\n", validateReport)
 
 	return nil
 }

@@ -322,11 +322,9 @@ func (cd *ChangeDetector) detectEntityChanges(
 		if !exists {
 			// Entity added
 			changes.AddedEntities = append(changes.AddedEntities, name)
-		} else {
+		} else if cd.hasEntityChanged(oldEntity, newEntity) {
 			// Check if entity was modified
-			if cd.hasEntityChanged(oldEntity, newEntity) {
-				changes.ModifiedEntities = append(changes.ModifiedEntities, name)
-			}
+			changes.ModifiedEntities = append(changes.ModifiedEntities, name)
 		}
 	}
 
@@ -385,10 +383,8 @@ func (cd *ChangeDetector) detectAPIChanges(
 		oldAPI, exists := oldAPIs[key]
 		if !exists {
 			changes.AddedAPIContracts = append(changes.AddedAPIContracts, key)
-		} else {
-			if cd.hasAPIChanged(oldAPI, newAPI) {
-				changes.ModifiedAPIContracts = append(changes.ModifiedAPIContracts, key)
-			}
+		} else if cd.hasAPIChanged(oldAPI, newAPI) {
+			changes.ModifiedAPIContracts = append(changes.ModifiedAPIContracts, key)
 		}
 	}
 

@@ -13,7 +13,7 @@ import (
 func ExampleNewClient_anthropic() {
 	config := llm.Config{
 		Provider:    llm.ProviderAnthropic,
-		Model:       "claude-sonnet-4",
+		Model:       "claude-sonnet-4-5",
 		Temperature: 0.0, // MUST be 0.0 for deterministic output
 		APIKey:      "sk-ant-api03-your-api-key-here",
 		Timeout:     120 * time.Second,
@@ -185,7 +185,7 @@ func ExampleConfig_Validate() {
 	// Invalid config - temperature must be 0.0
 	invalidConfig := llm.Config{
 		Provider:    llm.ProviderAnthropic,
-		Model:       "claude-sonnet-4",
+		Model:       "claude-sonnet-4-5",
 		Temperature: 0.7, // Invalid!
 		APIKey:      "sk-ant-api03-test-key-1234567890",
 		Timeout:     60 * time.Second,
@@ -217,7 +217,7 @@ func ExampleConfig_Validate() {
 func ExampleConfig_String() {
 	config := llm.Config{
 		Provider:    llm.ProviderAnthropic,
-		Model:       "claude-sonnet-4",
+		Model:       "claude-sonnet-4-5",
 		Temperature: 0.0,
 		APIKey:      "sk-ant-api03-very-secret-key-that-should-not-be-shown",
 		Timeout:     60 * time.Second,

@@ -15,7 +15,7 @@ func TestConfig_DefaultConfig(t *testing.T) {
 	cfg := llm.DefaultConfig()
 
 	assert.Equal(t, llm.ProviderAnthropic, cfg.Provider)
-	assert.Equal(t, "claude-sonnet-4", cfg.Model)
+	assert.Equal(t, "claude-sonnet-4-5", cfg.Model)
 	assert.Equal(t, 0.0, cfg.Temperature, "Temperature must be 0.0 for determinism")
 	assert.Equal(t, 120*time.Second, cfg.Timeout)
 	assert.Equal(t, 4096, cfg.MaxTokens)
@@ -35,7 +35,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "valid config - anthropic",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.0,
 				APIKey:      "sk-ant-api03-test-key-1234567890",
 				Timeout:     60 * time.Second,
@@ -107,7 +107,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "non-zero temperature",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.7, // MUST be 0.0
 				APIKey:      "test-key-1234567890",
 				Timeout:     60 * time.Second,
@@ -122,7 +122,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty API key",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.0,
 				APIKey:      "",
 				Timeout:     60 * time.Second,
@@ -137,7 +137,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "zero timeout",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.0,
 				APIKey:      "test-key-1234567890",
 				Timeout:     0,
@@ -152,7 +152,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "negative max tokens",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.0,
 				APIKey:      "test-key-1234567890",
 				Timeout:     60 * time.Second,
@@ -167,7 +167,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "negative max retries",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.0,
 				APIKey:      "test-key-1234567890",
 				Timeout:     60 * time.Second,
@@ -182,7 +182,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "zero retry delay",
 			config: llm.Config{
 				Provider:    llm.ProviderAnthropic,
-				Model:       "claude-sonnet-4",
+				Model:       "claude-sonnet-4-5",
 				Temperature: 0.0,
 				APIKey:      "test-key-1234567890",
 				Timeout:     60 * time.Second,
@@ -212,7 +212,7 @@ func TestConfig_Validate(t *testing.T) {
 func TestConfig_String(t *testing.T) {
 	cfg := llm.Config{
 		Provider:    llm.ProviderAnthropic,
-		Model:       "claude-sonnet-4",
+		Model:       "claude-sonnet-4-5",
 		Temperature: 0.0,
 		APIKey:      "sk-ant-api03-very-secret-key-1234567890",
 		Timeout:     60 * time.Second,
@@ -225,7 +225,7 @@ func TestConfig_String(t *testing.T) {
 	assert.NotContains(t, str, "very-secret-key")
 	assert.Contains(t, str, "***")
 	assert.Contains(t, str, "Provider=anthropic")
-	assert.Contains(t, str, "Model=claude-sonnet-4")
+	assert.Contains(t, str, "Model=claude-sonnet-4-5")
 	assert.Contains(t, str, "Temperature=0.0")
 }
 
@@ -303,7 +303,7 @@ func TestValidateAPIKey(t *testing.T) {
 func TestNewClient_InvalidConfig(t *testing.T) {
 	invalidConfig := llm.Config{
 		Provider:    llm.ProviderAnthropic,
-		Model:       "claude-sonnet-4",
+		Model:       "claude-sonnet-4-5",
 		Temperature: 0.7, // Invalid: must be 0.0
 		APIKey:      "test-key-1234567890",
 		Timeout:     60 * time.Second,

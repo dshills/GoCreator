@@ -284,7 +284,7 @@ ValidationReport
 // Temperature must be 0.0 for deterministic output
 config := LLMConfig{
     Temperature: 0.0,  // No randomness
-    Model: "claude-sonnet-4",
+    Model: "claude-sonnet-4-5",
 }
 ```
 

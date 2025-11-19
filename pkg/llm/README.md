@@ -58,7 +58,7 @@ func main() {
 ```go
 config := llm.Config{
     Provider:    llm.ProviderAnthropic,
-    Model:       "claude-sonnet-4",
+    Model:       "claude-sonnet-4-5",
     Temperature: 0.0, // MUST be 0.0
     APIKey:      "sk-ant-api03-your-key",
     Timeout:     120 * time.Second,
@@ -355,7 +355,7 @@ The package implements exponential backoff retry logic:
 All errors are wrapped with provider and operation context:
 
 ```
-llm[anthropic:claude-sonnet-4] generate: <underlying error>
+llm[anthropic:claude-sonnet-4-5] generate: <underlying error>
 ```
 
 This makes debugging easier and provides clear error messages.

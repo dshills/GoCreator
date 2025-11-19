@@ -3,6 +3,7 @@
 package yamlutil
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -49,7 +50,8 @@ func Unmarshal(data []byte, v interface{}) error {
 // enhanceError converts a yaml.TypeError or other YAML error into a detailed ParseError
 func enhanceError(err error, content string) error {
 	// Handle yaml.TypeError which contains multiple errors
-	if typeErr, ok := err.(*yaml.TypeError); ok {
+	var typeErr *yaml.TypeError
+	if errors.As(err, &typeErr) {
 		// Return the first error with enhancement
 		if len(typeErr.Errors) > 0 {
 			return parseYAMLError(typeErr.Errors[0], content)

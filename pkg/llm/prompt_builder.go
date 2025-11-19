@@ -66,6 +66,8 @@ func (pb *PromptBuilder) Build() []CacheableMessage {
 
 // BuildSinglePrompt returns a single concatenated prompt string for non-caching clients
 func (pb *PromptBuilder) BuildSinglePrompt() string {
-	allParts := append(pb.cacheableParts, pb.dynamicParts...)
+	allParts := make([]string, 0, len(pb.cacheableParts)+len(pb.dynamicParts))
+	allParts = append(allParts, pb.cacheableParts...)
+	allParts = append(allParts, pb.dynamicParts...)
 	return strings.Join(allParts, "\n\n")
 }

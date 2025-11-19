@@ -417,7 +417,7 @@ Create a `.gocreator.yaml` file in your project root (optional - uses defaults i
 ```yaml
 llm:
   provider: anthropic          # anthropic, openai, google
-  model: claude-sonnet-4       # Model to use
+  model: claude-sonnet-4-5       # Model to use
   temperature: 0.0             # 0.0 for deterministic output
   api_key: ${ANTHROPIC_API_KEY} # Use environment variable
   enable_caching: true         # Enable prompt caching (Anthropic only)
@@ -552,7 +552,7 @@ echo $ANTHROPIC_API_KEY
 curl https://api.anthropic.com/v1/messages \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "content-type: application/json" \
-  -d '{"model":"claude-sonnet-4","messages":[{"role":"user","content":"test"}],"max_tokens":10}'
+  -d '{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"test"}],"max_tokens":10}'
 ```
 
 **Solution**: Ensure API key is set and valid:

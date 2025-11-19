@@ -156,10 +156,11 @@ func (pt *ProgressTracker) Complete() {
 
 // printHeader prints the initial header
 func (pt *ProgressTracker) printHeader() {
-	fmt.Fprintln(pt.config.Writer)
-	pt.bold.Fprintln(pt.config.Writer, "GoCreator - Code Generation")
-	fmt.Fprintln(pt.config.Writer, strings.Repeat("=", 50))
-	fmt.Fprintln(pt.config.Writer)
+	// Write errors are intentionally ignored for best-effort console output
+	_, _ = fmt.Fprintln(pt.config.Writer)
+	_, _ = pt.bold.Fprintln(pt.config.Writer, "GoCreator - Code Generation")
+	_, _ = fmt.Fprintln(pt.config.Writer, strings.Repeat("=", 50))
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // handlePhaseStarted handles phase started events
@@ -193,7 +194,7 @@ func (pt *ProgressTracker) handlePhaseCompleted(event models.ProgressEvent) {
 
 	// Print phase completion
 	pt.printPhaseComplete(phase, duration, files)
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // handleFileGenerating handles file generating events
@@ -292,7 +293,7 @@ func (pt *ProgressTracker) runSpinner() {
 			pt.mu.Lock()
 			if pt.currentFile != "" {
 				elapsed := time.Since(pt.fileStartTime)
-				fmt.Fprintf(pt.config.Writer, "\r%s Generating %s... (%s elapsed)",
+				_, _ = fmt.Fprintf(pt.config.Writer, "\r%s Generating %s... (%s elapsed)",
 					pt.cyan.Sprint(pt.spinnerChars[pt.spinnerIndex]),
 					pt.currentFile,
 					pt.gray.Sprint(formatDuration(elapsed)))
@@ -313,76 +314,80 @@ func (pt *ProgressTracker) stopCurrentSpinner() {
 	}
 
 	// Clear the spinner line
-	fmt.Fprintf(pt.config.Writer, "\r%s\r", strings.Repeat(" ", 80))
+	_, _ = fmt.Fprintf(pt.config.Writer, "\r%s\r", strings.Repeat(" ", 80))
 }
 
 // printPhaseHeader prints a phase header
 func (pt *ProgressTracker) printPhaseHeader(phase, description string) {
+	// Write errors are intentionally ignored for best-effort console output
 	progress := fmt.Sprintf("[%d/%d]", pt.completedPhases+1, pt.totalPhases)
-	pt.cyan.Fprintf(pt.config.Writer, "%s Phase: %s\n", progress, phase)
+	_, _ = pt.cyan.Fprintf(pt.config.Writer, "%s Phase: %s\n", progress, phase)
 	if description != "" {
-		pt.gray.Fprintf(pt.config.Writer, "      %s\n", description)
+		_, _ = pt.gray.Fprintf(pt.config.Writer, "      %s\n", description)
 	}
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // printPhaseComplete prints phase completion
 func (pt *ProgressTracker) printPhaseComplete(phase string, duration time.Duration, files int) {
-	pt.green.Fprintf(pt.config.Writer, "  ✓ %s completed", phase)
-	fmt.Fprintf(pt.config.Writer, " (%s", formatDuration(duration))
+	// Write errors are intentionally ignored for best-effort console output
+	_, _ = pt.green.Fprintf(pt.config.Writer, "  ✓ %s completed", phase)
+	_, _ = fmt.Fprintf(pt.config.Writer, " (%s", formatDuration(duration))
 	if files > 0 {
-		fmt.Fprintf(pt.config.Writer, ", %d files", files)
+		_, _ = fmt.Fprintf(pt.config.Writer, ", %d files", files)
 	}
-	fmt.Fprintln(pt.config.Writer, ")")
+	_, _ = fmt.Fprintln(pt.config.Writer, ")")
 }
 
 // printFileComplete prints file completion
 func (pt *ProgressTracker) printFileComplete(path string, lines int, duration time.Duration) {
-	fmt.Fprintf(pt.config.Writer, "  ")
-	pt.green.Fprintf(pt.config.Writer, "✓")
-	fmt.Fprintf(pt.config.Writer, " %s", path)
+	// Write errors are intentionally ignored for best-effort console output
+	_, _ = fmt.Fprintf(pt.config.Writer, "  ")
+	_, _ = pt.green.Fprintf(pt.config.Writer, "✓")
+	_, _ = fmt.Fprintf(pt.config.Writer, " %s", path)
 
 	if lines > 0 {
-		pt.gray.Fprintf(pt.config.Writer, " (%d lines", lines)
+		_, _ = pt.gray.Fprintf(pt.config.Writer, " (%d lines", lines)
 		if duration > 0 {
-			pt.gray.Fprintf(pt.config.Writer, ", %s", formatDuration(duration))
+			_, _ = pt.gray.Fprintf(pt.config.Writer, ", %s", formatDuration(duration))
 		}
-		pt.gray.Fprintf(pt.config.Writer, ")")
+		_, _ = pt.gray.Fprintf(pt.config.Writer, ")")
 	}
 
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // printMetricsUpdate prints current metrics
 func (pt *ProgressTracker) printMetricsUpdate() {
-	fmt.Fprintln(pt.config.Writer)
-	pt.bold.Fprintln(pt.config.Writer, "Progress Metrics:")
+	// Write errors are intentionally ignored for best-effort console output
+	_, _ = fmt.Fprintln(pt.config.Writer)
+	_, _ = pt.bold.Fprintln(pt.config.Writer, "Progress Metrics:")
 
 	// Files
-	fmt.Fprintf(pt.config.Writer, "  Files: %d completed\n", pt.filesCompleted)
+	_, _ = fmt.Fprintf(pt.config.Writer, "  Files: %d completed\n", pt.filesCompleted)
 
 	// Tokens
 	if pt.config.ShowTokens {
-		fmt.Fprintf(pt.config.Writer, "  Tokens: %s input, %s output",
+		_, _ = fmt.Fprintf(pt.config.Writer, "  Tokens: %s input, %s output",
 			formatNumber(pt.totalInputTokens),
 			formatNumber(pt.totalOutputTokens))
 
 		if pt.totalCachedTokens > 0 {
 			cacheHitRate := float64(pt.totalCachedTokens) / float64(pt.totalInputTokens) * 100
-			pt.green.Fprintf(pt.config.Writer, " (%s cached - %.1f%% hit rate)",
+			_, _ = pt.green.Fprintf(pt.config.Writer, " (%s cached - %.1f%% hit rate)",
 				formatNumber(pt.totalCachedTokens),
 				cacheHitRate)
 		}
-		fmt.Fprintln(pt.config.Writer)
+		_, _ = fmt.Fprintln(pt.config.Writer)
 	}
 
 	// Cost
 	if pt.config.ShowCost && pt.totalCost > 0 {
-		fmt.Fprintf(pt.config.Writer, "  Cost: $%.4f", pt.totalCost)
+		_, _ = fmt.Fprintf(pt.config.Writer, "  Cost: $%.4f", pt.totalCost)
 		if pt.estimatedCost > 0 {
-			fmt.Fprintf(pt.config.Writer, " (estimated total: $%.4f)", pt.estimatedCost)
+			_, _ = fmt.Fprintf(pt.config.Writer, " (estimated total: $%.4f)", pt.estimatedCost)
 		}
-		fmt.Fprintln(pt.config.Writer)
+		_, _ = fmt.Fprintln(pt.config.Writer)
 	}
 
 	// ETA
@@ -390,43 +395,45 @@ func (pt *ProgressTracker) printMetricsUpdate() {
 		elapsed := time.Since(pt.startTime)
 		avgPerPhase := elapsed / time.Duration(pt.completedPhases)
 		remaining := avgPerPhase * time.Duration(pt.totalPhases-pt.completedPhases)
-		fmt.Fprintf(pt.config.Writer, "  ETA: ~%s remaining\n", formatDuration(remaining))
+		_, _ = fmt.Fprintf(pt.config.Writer, "  ETA: ~%s remaining\n", formatDuration(remaining))
 	}
 
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // printError prints an error
 func (pt *ProgressTracker) printError(phase, message, file string) {
-	fmt.Fprintln(pt.config.Writer)
-	pt.red.Fprintf(pt.config.Writer, "✗ Error in phase %s\n", phase)
+	// Write errors are intentionally ignored for best-effort console output
+	_, _ = fmt.Fprintln(pt.config.Writer)
+	_, _ = pt.red.Fprintf(pt.config.Writer, "✗ Error in phase %s\n", phase)
 	if file != "" {
-		fmt.Fprintf(pt.config.Writer, "  File: %s\n", file)
+		_, _ = fmt.Fprintf(pt.config.Writer, "  File: %s\n", file)
 	}
-	fmt.Fprintf(pt.config.Writer, "  %s\n", message)
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintf(pt.config.Writer, "  %s\n", message)
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // printSummary prints final summary
 func (pt *ProgressTracker) printSummary() {
+	// Write errors are intentionally ignored for best-effort console output
 	totalDuration := time.Since(pt.startTime)
 
-	fmt.Fprintln(pt.config.Writer)
-	fmt.Fprintln(pt.config.Writer, strings.Repeat("=", 50))
-	pt.bold.Fprintln(pt.config.Writer, "Generation Complete!")
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer, strings.Repeat("=", 50))
+	_, _ = pt.bold.Fprintln(pt.config.Writer, "Generation Complete!")
+	_, _ = fmt.Fprintln(pt.config.Writer)
 
 	// Overall stats
-	pt.green.Fprintf(pt.config.Writer, "✓ Total Duration: %s\n", formatDuration(totalDuration))
-	fmt.Fprintf(pt.config.Writer, "✓ Files Generated: %d\n", pt.filesCompleted)
+	_, _ = pt.green.Fprintf(pt.config.Writer, "✓ Total Duration: %s\n", formatDuration(totalDuration))
+	_, _ = fmt.Fprintf(pt.config.Writer, "✓ Files Generated: %d\n", pt.filesCompleted)
 
 	// Phase breakdown
 	if len(pt.phaseDurations) > 0 {
-		fmt.Fprintln(pt.config.Writer)
-		pt.bold.Fprintln(pt.config.Writer, "Phase Breakdown:")
+		_, _ = fmt.Fprintln(pt.config.Writer)
+		_, _ = pt.bold.Fprintln(pt.config.Writer, "Phase Breakdown:")
 		for phase, duration := range pt.phaseDurations {
 			percentage := float64(duration) / float64(totalDuration) * 100
-			fmt.Fprintf(pt.config.Writer, "  %s: %s (%.1f%%)\n",
+			_, _ = fmt.Fprintf(pt.config.Writer, "  %s: %s (%.1f%%)\n",
 				phase,
 				formatDuration(duration),
 				percentage)
@@ -435,14 +442,14 @@ func (pt *ProgressTracker) printSummary() {
 
 	// Token stats
 	if pt.config.ShowTokens && pt.totalInputTokens > 0 {
-		fmt.Fprintln(pt.config.Writer)
-		pt.bold.Fprintln(pt.config.Writer, "Token Usage:")
-		fmt.Fprintf(pt.config.Writer, "  Input: %s tokens\n", formatNumber(pt.totalInputTokens))
-		fmt.Fprintf(pt.config.Writer, "  Output: %s tokens\n", formatNumber(pt.totalOutputTokens))
+		_, _ = fmt.Fprintln(pt.config.Writer)
+		_, _ = pt.bold.Fprintln(pt.config.Writer, "Token Usage:")
+		_, _ = fmt.Fprintf(pt.config.Writer, "  Input: %s tokens\n", formatNumber(pt.totalInputTokens))
+		_, _ = fmt.Fprintf(pt.config.Writer, "  Output: %s tokens\n", formatNumber(pt.totalOutputTokens))
 
 		if pt.totalCachedTokens > 0 {
 			cacheHitRate := float64(pt.totalCachedTokens) / float64(pt.totalInputTokens) * 100
-			pt.green.Fprintf(pt.config.Writer, "  Cached: %s tokens (%.1f%% hit rate)\n",
+			_, _ = pt.green.Fprintf(pt.config.Writer, "  Cached: %s tokens (%.1f%% hit rate)\n",
 				formatNumber(pt.totalCachedTokens),
 				cacheHitRate)
 		}
@@ -450,12 +457,12 @@ func (pt *ProgressTracker) printSummary() {
 
 	// Cost stats
 	if pt.config.ShowCost && pt.totalCost > 0 {
-		fmt.Fprintln(pt.config.Writer)
-		pt.bold.Fprintln(pt.config.Writer, "Cost:")
-		fmt.Fprintf(pt.config.Writer, "  Total: $%.4f\n", pt.totalCost)
+		_, _ = fmt.Fprintln(pt.config.Writer)
+		_, _ = pt.bold.Fprintln(pt.config.Writer, "Cost:")
+		_, _ = fmt.Fprintf(pt.config.Writer, "  Total: $%.4f\n", pt.totalCost)
 	}
 
-	fmt.Fprintln(pt.config.Writer)
+	_, _ = fmt.Fprintln(pt.config.Writer)
 }
 
 // formatDuration formats a duration for display

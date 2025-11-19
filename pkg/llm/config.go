@@ -23,7 +23,7 @@ type Config struct {
 	// Provider specifies which LLM provider to use (anthropic, openai, google)
 	Provider Provider
 
-	// Model specifies the model name (e.g., "claude-sonnet-4", "gpt-4", "gemini-pro")
+	// Model specifies the model name (e.g., "claude-sonnet-4-5", "gpt-4", "gemini-pro")
 	Model string
 
 	// Temperature controls randomness in responses. MUST be 0.0 for determinism.
@@ -57,7 +57,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Provider:      ProviderAnthropic,
-		Model:         "claude-sonnet-4",
+		Model:         "claude-sonnet-4-5",
 		Temperature:   0.0, // MUST be 0.0 for deterministic output
 		Timeout:       120 * time.Second,
 		MaxTokens:     4096,

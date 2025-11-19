@@ -111,7 +111,7 @@ func Load(configPath string) (*Config, error) {
 func setDefaults(v *viper.Viper) {
 	// LLM defaults
 	v.SetDefault("llm.provider", "anthropic")
-	v.SetDefault("llm.model", "claude-sonnet-4")
+	v.SetDefault("llm.model", "claude-sonnet-4-5")
 	v.SetDefault("llm.temperature", 0.0)
 	v.SetDefault("llm.timeout", 60*time.Second)
 	v.SetDefault("llm.max_tokens", 4096)

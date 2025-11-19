@@ -528,7 +528,7 @@ echo $ANTHROPIC_API_KEY
 curl https://api.anthropic.com/v1/messages \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "content-type: application/json" \
-  -d '{"model":"claude-sonnet-4","messages":[{"role":"user","content":"test"}],"max_tokens":10}'
+  -d '{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"test"}],"max_tokens":10}'
 ```
 
 ---
