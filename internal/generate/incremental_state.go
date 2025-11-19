@@ -236,7 +236,7 @@ func (ism *IncrementalStateManager) UpdateState(
 			Checksum:     checksum,
 			GeneratedAt:  patch.AppliedAt,
 			Dependencies: dependencyGraph[patch.TargetFile], // Use original path to look up in incoming graph
-			Template:     false,                             // TODO: Detect if template-generated
+			Template:     isTemplateFile(normalizedPath),
 		}
 
 		ism.state.GeneratedFiles[normalizedPath] = fileState
@@ -315,4 +315,33 @@ func (ism *IncrementalStateManager) Clear() error {
 	log.Debug().Str("path", ism.stateFilePath).Msg("Cleared incremental state")
 	ism.state = nil
 	return nil
+}
+
+// isTemplateFile determines if a file is generated from a template rather than AI-generated code
+func isTemplateFile(path string) bool {
+	// Get the base filename
+	base := filepath.Base(path)
+
+	// Common template-generated files
+	templateFiles := map[string]bool{
+		"go.mod":              true,
+		"go.sum":              true,
+		"go.work":             true,
+		"Makefile":            true,
+		"Dockerfile":          true,
+		"docker-compose.yml":  true,
+		"docker-compose.yaml": true,
+		".gitignore":          true,
+		".dockerignore":       true,
+		"LICENSE":             true,
+		"LICENSE.txt":         true,
+		"LICENSE.md":          true,
+		".golangci.yml":       true,
+		".golangci.yaml":      true,
+		".editorconfig":       true,
+		".env.example":        true,
+		".env.template":       true,
+	}
+
+	return templateFiles[base]
 }

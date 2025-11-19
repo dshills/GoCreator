@@ -144,16 +144,96 @@ func (a *OpenAIAdapter) Shutdown(_ context.Context) error {
 
 // Helper functions
 
-func isRetryableError(_ error) bool {
-	// TODO: Implement proper error classification based on OpenAI error types
-	// For now, assume all errors are retryable
-	return true
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	code := classifyError(err)
+	switch code {
+	case providers.ErrorCodeRateLimit, providers.ErrorCodeNetwork, providers.ErrorCodeTimeout, providers.ErrorCodeServerError:
+		return true
+	case providers.ErrorCodeAuth, providers.ErrorCodeInvalidInput:
+		return false
+	default:
+		// For unknown errors, be conservative and don't retry
+		return false
+	}
 }
 
-func classifyError(_ error) providers.ErrorCode {
-	// TODO: Implement proper error classification
-	// Check error message/type and return appropriate code
+func classifyError(err error) providers.ErrorCode {
+	if err == nil {
+		return providers.ErrorCodeUnknown
+	}
+
+	errMsg := err.Error()
+
+	// Check for authentication errors
+	if contains(errMsg, "401", "unauthorized", "invalid_api_key", "authentication", "api key") {
+		return providers.ErrorCodeAuth
+	}
+
+	// Check for rate limit errors
+	if contains(errMsg, "429", "rate_limit", "quota", "too many requests") {
+		return providers.ErrorCodeRateLimit
+	}
+
+	// Check for invalid input errors
+	if contains(errMsg, "400", "invalid_request", "bad request", "invalid input", "validation") {
+		return providers.ErrorCodeInvalidInput
+	}
+
+	// Check for server errors
+	if contains(errMsg, "500", "502", "503", "504", "internal_error", "server_error", "service unavailable") {
+		return providers.ErrorCodeServerError
+	}
+
+	// Check for timeout errors
+	if contains(errMsg, "timeout", "deadline exceeded", "context deadline") {
+		return providers.ErrorCodeTimeout
+	}
+
+	// Check for network errors
+	if contains(errMsg, "connection refused", "connection reset", "no such host", "network", "EOF", "broken pipe") {
+		return providers.ErrorCodeNetwork
+	}
+
+	// Default to unknown
 	return providers.ErrorCodeUnknown
+}
+
+// contains checks if any of the substrings exist in the string (case-insensitive)
+func contains(s string, substrings ...string) bool {
+	lower := toLower(s)
+	for _, sub := range substrings {
+		if containsSubstring(lower, toLower(sub)) {
+			return true
+		}
+	}
+	return false
+}
+
+// Simple case-insensitive contains
+func containsSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// Simple ASCII lowercase conversion
+func toLower(s string) string {
+	result := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			c = c + ('a' - 'A')
+		}
+		result[i] = c
+	}
+	return string(result)
 }
 
 func estimateTokens(text string) int {

@@ -328,9 +328,15 @@ func (e *engine) Resume(_ context.Context, checkpointID string) (*models.Generat
 		Str("checkpoint_id", checkpointID).
 		Msg("Resuming generation from checkpoint")
 
-	// This would use the graph's Resume functionality
-	// For now, return an error indicating it's not implemented
-	return nil, fmt.Errorf("checkpoint resume not yet implemented")
+	// Resume functionality is implemented via incremental generation
+	// Use the --resume flag with the generate command, which will:
+	// 1. Check for existing state in .gocreator/state.json
+	// 2. Automatically enable incremental mode if state exists
+	// 3. Regenerate only changed files based on FCS diff
+	//
+	// This provides similar functionality to checkpoint resume without
+	// requiring complex mid-execution state persistence.
+	return nil, fmt.Errorf("direct Resume() call not supported - use --resume flag with generate command instead")
 }
 
 // emitEvent sends a progress event to the event channel if configured

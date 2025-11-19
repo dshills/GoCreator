@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/dshills/gocreator/internal/clarify"
 	"github.com/dshills/gocreator/internal/config"
@@ -118,11 +119,33 @@ func runClarify(_ *cobra.Command, args []string) error {
 	interactive := clarifyInteractive && clarifyBatch == ""
 
 	// Load batch answers if provided
+	var batchAnswers map[string]string
 	if clarifyBatch != "" {
 		fmt.Printf("Loading batch answers from: %s\n", clarifyBatch)
 		interactive = false
-		// TODO: Implement batch answer loading
-		log.Warn().Msg("Batch mode not yet fully implemented")
+
+		// Read batch answers file
+		//nolint:gosec // G304: Reading user-provided batch file - required for CLI functionality
+		batchData, err := os.ReadFile(clarifyBatch)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to read batch answers file")
+			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to read batch answers file: %w", err)}
+		}
+
+		// Parse JSON answers
+		if err := json.Unmarshal(batchData, &batchAnswers); err != nil {
+			log.Error().Err(err).Msg("Failed to parse batch answers JSON")
+			return ExitError{Code: ExitCodeSpecError, Err: fmt.Errorf("failed to parse batch answers: %w", err)}
+		}
+
+		log.Info().
+			Int("answers_count", len(batchAnswers)).
+			Msg("Loaded batch answers")
+
+		// Note: The current clarification engine doesn't support batch answers yet.
+		// The engine runs in autonomous mode and doesn't prompt for user input.
+		// In the future, batch answers will be used to pre-populate responses.
+		log.Warn().Msg("Batch answers loaded but not yet integrated with clarification engine (runs autonomously)")
 	}
 
 	// Run clarification
@@ -185,9 +208,49 @@ func writeFCS(fcs *models.FinalClarifiedSpecification, path string) error {
 	return nil
 }
 
-func createLLMClient(_ *config.Config) (llm.Client, error) {
-	// TODO: Implement actual LLM client creation based on config
-	// For now, return a placeholder
-	log.Warn().Msg("LLM client creation not yet fully implemented")
-	return nil, fmt.Errorf("LLM client creation not yet implemented")
+func createLLMClient(cfg *config.Config) (llm.Client, error) {
+	// Get API key from config or environment variable
+	apiKey := cfg.LLM.APIKey
+	if apiKey == "" {
+		// Fall back to environment variable based on provider
+		switch cfg.LLM.Provider {
+		case "anthropic":
+			apiKey = os.Getenv("ANTHROPIC_API_KEY")
+		case "openai":
+			apiKey = os.Getenv("OPENAI_API_KEY")
+		case "google":
+			apiKey = os.Getenv("GOOGLE_API_KEY")
+		}
+	}
+
+	if apiKey == "" {
+		return nil, fmt.Errorf("API key not found in config or environment variable for provider: %s", cfg.LLM.Provider)
+	}
+
+	// Create LLM client configuration
+	llmConfig := llm.Config{
+		Provider:      llm.Provider(cfg.LLM.Provider),
+		Model:         cfg.LLM.Model,
+		Temperature:   0.0, // Force 0.0 for deterministic output (required by spec)
+		APIKey:        apiKey,
+		Timeout:       cfg.LLM.Timeout,
+		MaxTokens:     cfg.LLM.MaxTokens,
+		MaxRetries:    3,
+		RetryDelay:    time.Second * 2,
+		EnableCaching: true, // Enable prompt caching for cost savings
+		CacheTTL:      "5m",
+	}
+
+	// Create and return LLM client
+	client, err := llm.NewClient(llmConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+	}
+
+	log.Info().
+		Str("provider", cfg.LLM.Provider).
+		Str("model", cfg.LLM.Model).
+		Msg("LLM client created successfully")
+
+	return client, nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -78,6 +79,23 @@ func runGenerate(_ *cobra.Command, args []string) error {
 		Bool("dry_run", generateDryRun).
 		Msg("Starting generation phase")
 
+	// Handle resume: check for existing state and enable incremental mode
+	if generateResume {
+		stateFilePath := filepath.Join(generateOutput, ".gocreator", "state.json")
+		if _, err := os.Stat(stateFilePath); err == nil {
+			log.Info().
+				Str("state_file", stateFilePath).
+				Msg("Found previous generation state, enabling incremental mode")
+			generateIncremental = true
+		} else if os.IsNotExist(err) {
+			log.Warn().
+				Str("output_dir", generateOutput).
+				Msg("Resume requested but no previous generation state found, starting fresh")
+		} else {
+			return ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to check state file: %w", err)}
+		}
+	}
+
 	// Phase 1: Clarification (silent, no progress bar for now)
 	fcs, err := runClarificationPhase(specFile, generateBatch)
 	if err != nil {
@@ -140,6 +158,30 @@ func runClarificationPhase(specFile, batchFile string) (*models.FinalClarifiedSp
 
 	// Determine interactive mode
 	interactive := batchFile == ""
+
+	// Load batch answers if provided
+	if batchFile != "" {
+		// Read batch answers file
+		//nolint:gosec // G304: Reading user-provided batch file - required for CLI functionality
+		batchData, err := os.ReadFile(batchFile)
+		if err != nil {
+			return nil, ExitError{Code: ExitCodeFileSystemError, Err: fmt.Errorf("failed to read batch answers file: %w", err)}
+		}
+
+		// Parse JSON answers
+		var batchAnswers map[string]string
+		if err := json.Unmarshal(batchData, &batchAnswers); err != nil {
+			return nil, ExitError{Code: ExitCodeSpecError, Err: fmt.Errorf("failed to parse batch answers: %w", err)}
+		}
+
+		log.Info().
+			Int("answers_count", len(batchAnswers)).
+			Msg("Loaded batch answers for generation")
+
+		// Note: The current clarification engine doesn't support batch answers yet.
+		// The engine runs in autonomous mode and doesn't prompt for user input.
+		log.Warn().Msg("Batch answers loaded but not yet integrated with clarification engine (runs autonomously)")
+	}
 
 	// Run clarification
 	ctx := context.Background()
